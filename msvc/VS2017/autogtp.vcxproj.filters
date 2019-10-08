@@ -106,5 +106,6 @@
   <ItemGroup>
     <None Include="..\..\autogtp\autogtp.pro" />
     <None Include="..\..\autogtp\README.md" />
+    <None Include="packages.config" />
   </ItemGroup>
 </Project>
