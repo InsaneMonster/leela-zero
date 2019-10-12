@@ -754,6 +754,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         game.display_state();
         return;
     } else if (command.find("final_score") == 0) {
+        // TODO: ftmp should not end just here but be used also later to be passed as training data
         float ftmp = game.final_score();
         /* white wins */
         if (ftmp < -0.1) {
@@ -1130,6 +1131,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             return;
         }
 
+        // TODO: should probably feed ftmp to this instead of who_won
         Training::dump_training(who_won, filename);
 
         if (!cmdstream.fail()) {

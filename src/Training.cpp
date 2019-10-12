@@ -164,6 +164,7 @@ TimeStep::NNPlanes Training::get_planes(const GameState* const state) {
     return planes;
 }
 
+// TODO: change here (maybe, not sure, I believe winrate is fine as is)
 void Training::record(Network & network, GameState& state, UCTNode& root) {
     auto step = TimeStep{};
     step.to_move = state.board.get_to_move();
@@ -209,6 +210,7 @@ void Training::record(Network & network, GameState& state, UCTNode& root) {
     m_data.emplace_back(step);
 }
 
+// TODO: change here, should get the final score and not the winner color
 void Training::dump_training(int winner_color, const std::string& filename) {
     auto chunker = OutputChunker{filename, true};
     dump_training(winner_color, chunker);

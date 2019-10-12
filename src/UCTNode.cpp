@@ -85,6 +85,7 @@ bool UCTNode::create_children(Network & network,
     // DCNN returns winrate as side to move
     const auto stm_eval = raw_netlist.winrate;
     const auto to_move = state.board.get_to_move();
+    // TODO: Have to change this part since we are no longer using the probability of winning for black
     // our search functions evaluate from black's point of view
     if (to_move == FastBoard::WHITE) {
         m_net_eval = 1.0f - stm_eval;
@@ -269,6 +270,7 @@ float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
         blackeval += static_cast<double>(virtual_loss);
     }
     auto eval = static_cast<float>(blackeval / double(visits));
+    // TODO: Have to change this part since we are no longer using the probability of winning for black
     if (tomove == FastBoard::WHITE) {
         eval = 1.0f - eval;
     }

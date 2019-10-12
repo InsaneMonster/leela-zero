@@ -576,6 +576,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
         }
     }
 
+    // TODO: we should never consider resigning in LeelaZero - Score, so what is below is to be disabled
     // if we aren't passing, should we consider resigning?
     if (bestmove != FastBoard::PASS) {
         if (should_resign(passflag, besteval)) {
