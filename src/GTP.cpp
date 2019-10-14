@@ -754,7 +754,6 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         game.display_state();
         return;
     } else if (command.find("final_score") == 0) {
-        // TODO: ftmp should not end just here but be used also later to be passed as training data
         float ftmp = game.final_score();
         /* white wins */
         if (ftmp < -0.1) {
@@ -1116,23 +1115,74 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         return;
     } else if (command.find("dump_training") == 0) {
         std::istringstream cmdstream(command);
-        std::string tmp, winner_color, filename;
-        int who_won;
 
-        // tmp will eat "dump_training"
-        cmdstream >> tmp >> winner_color >> filename;
+        std::vector<std::string> cmdvector{};
+        std::string winner_score, filename;
+        int final_score;
 
-        if (winner_color == "w" || winner_color == "white") {
-            who_won = FullBoard::WHITE;
-        } else if (winner_color == "b" || winner_color == "black") {
-            who_won = FullBoard::BLACK;
-        } else {
-            gtp_fail_printf(id, "syntax not understood");
-            return;
+        std::string cmdstr;
+        while (cmdstream >> cmdstr) 
+            cmdvector.push_back(cmdstr);
+
+        // Check the size of the command vector to control if signed score or winner color and unsigned score is given
+        if(cmdvector.size() == 3)
+        {
+            winner_score = cmdvector[1];
+            filename = cmdvector[2];
+            // If exception is thrown invalid score argument is given to the function
+            try
+            {
+                final_score = int(std::stof(winner_score));
+            }
+            catch (const std::invalid_argument& e_invalid_argument)
+            {
+                gtp_fail_printf(id, "invalid score argument, it should be a number");
+                return;
+            }
+
+        }
+        else
+        {
+            auto winner_color = cmdvector[1];
+            winner_score = cmdvector[2];
+            filename = cmdvector[3];
+            // If winner is white, final score is considered negative otherwise positive
+            if (winner_color == "w" || winner_color == "white") 
+            {
+                // If exception is thrown invalid score argument is given to the function
+                try
+                {
+                    final_score = -int(std::stof(winner_score));
+                }
+                catch (const std::invalid_argument& e_invalid_argument)
+                {
+                    gtp_fail_printf(id, "invalid score argument, it should be a number");
+                    return;
+                }
+
+            }
+            else if (winner_color == "b" || winner_color == "black") 
+            {
+                // If exception is thrown invalid score argument is given to the function
+                try
+                {
+                    final_score = int(std::stof(winner_score));
+                }
+                catch (const std::invalid_argument& e_invalid_argument)
+                {
+                    gtp_fail_printf(id, "invalid score argument, it should be a number");
+                    return;
+                }
+            }
+            else 
+            {
+                gtp_fail_printf(id, "syntax not understood");
+                return;
+            }
+            
         }
 
-        // TODO: should probably feed ftmp to this instead of who_won
-        Training::dump_training(who_won, filename);
+        Training::dump_training(final_score, filename);
 
         if (!cmdstream.fail()) {
             gtp_printf(id, "");

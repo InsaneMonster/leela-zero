@@ -302,7 +302,7 @@ void UCTNode::accumulate_eval(float eval) {
 UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     wait_expanded();
 
-    // Count parentvisits manually to avoid issues with transpositions.
+    // Count parent visits manually to avoid issues with transpositions.
     auto total_visited_policy = 0.0f;
     auto parentvisits = size_t{0};
     for (const auto& child : m_children) {
@@ -323,11 +323,17 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     auto best = static_cast<UCTNodePointer*>(nullptr);
     auto best_value = std::numeric_limits<double>::lowest();
 
+    // TODO: change winrate to score
+    // TODO: cfg_puct is a constant, maybe required to be changed
     for (auto& child : m_children) {
         if (!child.active()) {
             continue;
         }
 
+        // Set winrate to fpu_eval when there are no visit
+        // TODO: need to decide what to set on fpu eval (a bad score for example, or parent score less parent)
+        // TODO: need also to decide that fpu_reduction is the score to handicap when unexplored node (for example -10)
+        // TODO: change cfg_fpu_reduction and also root to -10
         auto winrate = fpu_eval;
         if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
             // Someone else is expanding this node, never select it
