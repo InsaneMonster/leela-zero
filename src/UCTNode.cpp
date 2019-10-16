@@ -85,10 +85,10 @@ bool UCTNode::create_children(Network & network,
     // DCNN returns winrate as side to move
     const auto stm_eval = raw_netlist.winrate;
     const auto to_move = state.board.get_to_move();
-    // TODO: Have to change this part since we are no longer using the probability of winning for black
     // our search functions evaluate from black's point of view
+    // If white set score evaluation to the opposite of its value
     if (to_move == FastBoard::WHITE) {
-        m_net_eval = 1.0f - stm_eval;
+        m_net_eval = -stm_eval;
     } else {
         m_net_eval = stm_eval;
     }
@@ -270,9 +270,9 @@ float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
         blackeval += static_cast<double>(virtual_loss);
     }
     auto eval = static_cast<float>(blackeval / double(visits));
-    // TODO: Have to change this part since we are no longer using the probability of winning for black
+    // If white set eval to the opposite of its value
     if (tomove == FastBoard::WHITE) {
-        eval = 1.0f - eval;
+        eval = -eval;
     }
     return eval;
 }
@@ -285,8 +285,9 @@ float UCTNode::get_eval(int tomove) const {
 }
 
 float UCTNode::get_net_eval(int tomove) const {
+    // If white return the opposite of the eval
     if (tomove == FastBoard::WHITE) {
-        return 1.0f - m_net_eval;
+        return -m_net_eval;
     }
     return m_net_eval;
 }
@@ -323,27 +324,24 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     auto best = static_cast<UCTNodePointer*>(nullptr);
     auto best_value = std::numeric_limits<double>::lowest();
 
-    // TODO: change winrate to score
-    // TODO: cfg_puct is a constant, maybe required to be changed
     for (auto& child : m_children) {
         if (!child.active()) {
             continue;
         }
 
         // Set winrate to fpu_eval when there are no visit
-        // TODO: need to decide what to set on fpu eval (a bad score for example, or parent score less parent)
-        // TODO: need also to decide that fpu_reduction is the score to handicap when unexplored node (for example -10)
-        // TODO: change cfg_fpu_reduction and also root to -10
         auto winrate = fpu_eval;
         if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
             // Someone else is expanding this node, never select it
             // if we can avoid so, because we'd block on it.
-            winrate = -1.0f - fpu_reduction;
+            // Note: we set the winrate to a very low real number in order to avoid being chosen
+            winrate = -1000.0f - fpu_reduction;
         } else if (child.get_visits() > 0) {
             winrate = child.get_eval(color);
         }
         const auto psa = child.get_policy();
         const auto denom = 1.0 + child.get_visits();
+        // TODO: cfg_puct is a constant, maybe required to be changed
         const auto puct = cfg_puct * psa * (numerator / denom);
         const auto value = winrate + puct;
         assert(value > std::numeric_limits<double>::lowest());
