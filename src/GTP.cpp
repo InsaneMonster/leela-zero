@@ -344,7 +344,8 @@ void GTP::setup_default_parameters() {
     cfg_logpuct = 0.015f;
     cfg_logconst = 1.7f;
     cfg_softmax_temp = 1.0f;
-    cfg_fpu_reduction = 0.25f;
+    // Set cfg_fpu_reduction to the absolute of a bad score, just tentative for now
+    cfg_fpu_reduction = 10.0f;
     // see UCTSearch::should_resign
     cfg_resignpct = -1;
     cfg_noise = false;
