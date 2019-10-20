@@ -836,9 +836,6 @@ Network::Netresult Network::get_output_internal(
     const auto winrate_out =
         innerproduct<VALUE_LAYER, 1, false>(winrate_data, m_ip2_val_w, m_ip2_val_b);
 
-    // Map TanH output range [-1..1] to [0..1] range
-    // const auto winrate = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
-
     // Element of the winrate vector to use to predict the score
     const auto winrate = winrate_out[0];
 
