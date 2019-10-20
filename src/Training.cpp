@@ -164,7 +164,6 @@ TimeStep::NNPlanes Training::get_planes(const GameState* const state) {
     return planes;
 }
 
-// TODO: change here (maybe, not sure, I believe winrate is fine as is)
 void Training::record(Network & network, GameState& state, UCTNode& root) {
     auto step = TimeStep{};
     step.to_move = state.board.get_to_move();
@@ -210,10 +209,9 @@ void Training::record(Network & network, GameState& state, UCTNode& root) {
     m_data.emplace_back(step);
 }
 
-// TODO: change here, should get the final score and not the winner color
-void Training::dump_training(int winner_color, const std::string& filename) {
+void Training::dump_training(int winner_score, const std::string& filename) {
     auto chunker = OutputChunker{filename, true};
-    dump_training(winner_color, chunker);
+    dump_training(winner_score, chunker);
 }
 
 void Training::save_training(const std::string& filename) {
@@ -244,7 +242,7 @@ void Training::load_training(std::ifstream& in) {
     }
 }
 
-void Training::dump_training(int winner_color, OutputChunker& outchunk) {
+void Training::dump_training(int winner_score, OutputChunker& outchunk) {
     auto training_str = std::string{};
     for (const auto& step : m_data) {
         auto out = std::stringstream{};
@@ -277,12 +275,10 @@ void Training::dump_training(int winner_color, OutputChunker& outchunk) {
             }
         }
         out << std::endl;
-        // And the game result for the side to move
-        if (step.to_move == winner_color) {
-            out << "1";
-        } else {
-            out << "-1";
-        }
+        // And the game result
+        // In LeelaZero - Score the game result is not a "boolean" (1 if black wins, -1 if white wins) but a score
+        // Note: winner score is already signed (positive if black, negative if white)
+        out << std::to_string(winner_score);
         out << std::endl;
         training_str.append(out.str());
     }
@@ -313,6 +309,7 @@ void Training::dump_debug(OutputChunker& outchunk) {
     outchunk.append(debug_str);
 }
 
+/// Process supervised games, not used for self-play
 void Training::process_game(GameState& state, size_t& train_pos, int who_won,
                             const std::vector<int>& tree_moves,
                             OutputChunker& outchunker) {
