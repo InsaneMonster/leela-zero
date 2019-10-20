@@ -53,6 +53,7 @@ public:
     static SearchResult from_eval(float eval) {
         return SearchResult(eval);
     }
+    // TODO: determine what this SearchResults and value from the board score represents
     static SearchResult from_score(float board_score) {
         if (board_score > 0.0f) {
             return SearchResult(1.0f);
@@ -123,7 +124,7 @@ private:
     void tree_stats(const UCTNode& node);
     std::string get_pv(FastState& state, UCTNode& parent);
     std::string get_analysis(int playouts);
-    bool should_resign(passflag_t passflag, float besteval);
+    // bool should_resign(passflag_t passflag, float besteval);
     bool have_alternate_moves(int elapsed_centis, int time_for_move);
     int est_playouts_left(int elapsed_centis, int time_for_move) const;
     size_t prune_noncontenders(int color, int elapsed_centis = 0, int time_for_move = 0,

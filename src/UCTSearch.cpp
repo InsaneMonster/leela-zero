@@ -301,10 +301,12 @@ void UCTSearch::dump_stats(FastState & state, UCTNode & parent) {
         tmpstate.play_move(node->get_move());
         auto pv = move + " " + get_pv(tmpstate, *node);
 
-        myprintf("%4s -> %7d (V: %5.2f%%) (LCB: %5.2f%%) (N: %5.2f%%) PV: %s\n",
+        // LeelaZero - Score does not use percentage of winning but a prediction of score
+        // TODO: should also other percentages be removed?
+        myprintf("%4s -> %7d (V: %5.2f%) (LCB: %5.2f%%) (N: %5.2f%%) PV: %s\n",
             move.c_str(),
             node->get_visits(),
-            node->get_visits() ? node->get_raw_eval(color)*100.0f : 0.0f,
+            node->get_visits() ? node->get_raw_eval(color): 0.0f,
             std::max(0.0f, node->get_eval_lcb(color) * 100.0f),
             node->get_policy() * 100.0f,
             pv.c_str());
@@ -400,7 +402,8 @@ void UCTSearch::tree_stats(const UCTNode& node) {
                  non_leaf_nodes, (1.0f*children_count) / non_leaf_nodes);
     }
 }
-
+/*
+/// Unused in LeelaZero - Score for now
 bool UCTSearch::should_resign(passflag_t passflag, float besteval) {
     if (passflag & UCTSearch::NORESIGN) {
         // resign not allowed
@@ -454,6 +457,7 @@ bool UCTSearch::should_resign(passflag_t passflag, float besteval) {
 
     return true;
 }
+*/
 
 int UCTSearch::get_best_move(passflag_t passflag) {
     int color = m_rootstate.board.get_to_move();
@@ -576,7 +580,9 @@ int UCTSearch::get_best_move(passflag_t passflag) {
         }
     }
 
-    // TODO: we should never consider resigning in LeelaZero - Score, so what is below is to be disabled
+    /*
+     *Disabled for LeelaZero - Score since should never resign
+     *
     // if we aren't passing, should we consider resigning?
     if (bestmove != FastBoard::PASS) {
         if (should_resign(passflag, besteval)) {
@@ -585,6 +591,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
             bestmove = FastBoard::RESIGN;
         }
     }
+    */
 
     return bestmove;
 }
