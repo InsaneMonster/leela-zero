@@ -123,6 +123,7 @@ private:
     // UCT eval
     float m_policy;
     // Original net eval for this node (not children).
+    // TODO: don't know if following starting eval should be changed
     float m_net_eval{0.0f};
     // Variable used for calculating variance of evaluations.
     // Initialized to small non-zero value to avoid accidental zero variances

@@ -207,6 +207,7 @@ void UCTNode::update(float eval) {
     // Cache values to avoid race conditions.
     auto old_eval = static_cast<float>(m_blackevals);
     auto old_visits = static_cast<int>(m_visits);
+    // TODO: don't know if following operations should be changed to account for the score
     auto old_delta = old_visits > 0 ? eval - old_eval / old_visits : 0.0f;
     m_visits++;
     accumulate_eval(eval);
