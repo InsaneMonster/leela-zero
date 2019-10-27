@@ -1137,12 +1137,12 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             }
             catch (const std::invalid_argument& e_invalid_argument)
             {
-                gtp_fail_printf(id, "invalid score argument, it should be a number");
+                gtp_fail_printf(id, "syntax not understood");
                 return;
             }
 
         }
-        else
+        else if(cmdvector.size() == 4)
         {
             auto winner_color = cmdvector[1];
             winner_score = cmdvector[2];
@@ -1157,7 +1157,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 }
                 catch (const std::invalid_argument& e_invalid_argument)
                 {
-                    gtp_fail_printf(id, "invalid score argument, it should be a number");
+                    gtp_fail_printf(id, "syntax not understood");
                     return;
                 }
 
@@ -1171,16 +1171,20 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 }
                 catch (const std::invalid_argument& e_invalid_argument)
                 {
-                    gtp_fail_printf(id, "invalid score argument, it should be a number");
+                    gtp_fail_printf(id, "syntax not understood");
                     return;
                 }
             }
-            else 
+            else
             {
                 gtp_fail_printf(id, "syntax not understood");
                 return;
             }
-            
+        }
+        else
+        {
+            gtp_fail_printf(id, "syntax not understood");
+            return;
         }
 
         Training::dump_training(final_score, filename);
