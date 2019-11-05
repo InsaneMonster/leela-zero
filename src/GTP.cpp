@@ -1189,7 +1189,8 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         Training::dump_training(final_score, filename);
 
-        if (!cmdstream.fail()) {
+        // If an error not occurred or the end of file is reached it's all fine
+        if (!cmdstream.fail() || cmdstream.eof()) {
             gtp_printf(id, "");
         } else {
             gtp_fail_printf(id, "syntax not understood");
