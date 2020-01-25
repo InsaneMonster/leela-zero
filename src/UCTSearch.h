@@ -53,15 +53,11 @@ public:
     static SearchResult from_eval(float eval) {
         return SearchResult(eval);
     }
-    // TODO: determine what this SearchResults and value from the board score represents
+
+	// The result is the score, so just pass it to the eval
     static SearchResult from_score(float board_score) {
-        if (board_score > 0.0f) {
-            return SearchResult(1.0f);
-        } else if (board_score < 0.0f) {
-            return SearchResult(0.0f);
-        } else {
-            return SearchResult(0.5f);
-        }
+		return SearchResult(board_score);
+        
     }
 private:
     explicit SearchResult(float eval)

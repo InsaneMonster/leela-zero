@@ -236,7 +236,6 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
     node->virtual_loss();
 
     if (node->expandable()) {
-    	// TODO: this should probably be changed to use the score directly in SearchResult
         if (currstate.get_passes() >= 2) {
             auto score = currstate.final_score();
             result = SearchResult::from_score(score);
