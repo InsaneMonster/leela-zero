@@ -65,9 +65,9 @@ std::ostream& operator <<(std::ostream& stream, const TimeStep& timestep) {
         stream << prob << ' ';
     }
     stream << timestep.to_move << ' ';
-    stream << timestep.net_winrate << ' ';
-    stream << timestep.root_uct_winrate << ' ';
-    stream << timestep.child_uct_winrate << ' ';
+    stream << timestep.net_score << ' ';
+    stream << timestep.root_uct_score << ' ';
+    stream << timestep.child_uct_score << ' ';
     stream << timestep.bestmove_visits << std::endl;
     return stream;
 }
@@ -88,9 +88,9 @@ std::istream& operator>> (std::istream& stream, TimeStep& timestep) {
         timestep.probabilities.push_back(prob);
     }
     stream >> timestep.to_move;
-    stream >> timestep.net_winrate;
-    stream >> timestep.root_uct_winrate;
-    stream >> timestep.child_uct_winrate;
+    stream >> timestep.net_score;
+    stream >> timestep.root_uct_score;
+    stream >> timestep.child_uct_score;
     stream >> timestep.bestmove_visits;
     return stream;
 }
@@ -171,11 +171,11 @@ void Training::record(Network & network, GameState& state, UCTNode& root) {
 
     const auto result = network.get_output(
         &state, Network::Ensemble::DIRECT, Network::IDENTITY_SYMMETRY);
-    step.net_winrate = result.winrate;
+    step.net_score = result.score;
 
     const auto& best_node = root.get_best_root_child(step.to_move);
-    step.root_uct_winrate = root.get_eval(step.to_move);
-    step.child_uct_winrate = best_node.get_eval(step.to_move);
+    step.root_uct_score = root.get_eval(step.to_move);
+    step.child_uct_score = best_node.get_eval(step.to_move);
     step.bestmove_visits = best_node.get_visits();
 
     step.probabilities.resize(POTENTIAL_MOVES);
@@ -209,7 +209,7 @@ void Training::record(Network & network, GameState& state, UCTNode& root) {
     m_data.emplace_back(step);
 }
 
-void Training::dump_training(int winner_score, const std::string& filename) {
+void Training::dump_training(float winner_score, const std::string& filename) {
     auto chunker = OutputChunker{filename, true};
     dump_training(winner_score, chunker);
 }
@@ -242,7 +242,7 @@ void Training::load_training(std::ifstream& in) {
     }
 }
 
-void Training::dump_training(int winner_score, OutputChunker& outchunk) {
+void Training::dump_training(float winner_score, OutputChunker& outchunk) {
     auto training_str = std::string{};
     for (const auto& step : m_data) {
         auto out = std::stringstream{};
@@ -276,9 +276,17 @@ void Training::dump_training(int winner_score, OutputChunker& outchunk) {
         }
         out << std::endl;
         // And the game result
-        // In LeelaZero - Score the game result is not a "boolean" (1 if black wins, -1 if white wins) but a score
-        // Note: winner score is already signed (positive if black, negative if white)
-        out << std::to_string(winner_score);
+        // In LeelaZero - Score the game result is not a "boolean" (1 if black wins, -1 if white wins) but a score (positive if black, negative if white)
+        // Change the sign of the score depending on the winner from the point of view of the current step for each step (inverting if the current step if not the winner)
+		auto const winner_color = winner_score >= 0 ? 0 : 1;
+		if (step.to_move == winner_color) 
+		{
+			out << std::to_string(winner_score);
+		}
+		else 
+		{
+			out << std::to_string(-winner_score);
+		}
         out << std::endl;
         training_str.append(out.str());
     }
@@ -300,9 +308,9 @@ void Training::dump_debug(OutputChunker& outchunk) {
     }
     for (const auto& step : m_data) {
         auto out = std::stringstream{};
-        out << step.net_winrate
-            << " " << step.root_uct_winrate
-            << " " << step.child_uct_winrate
+        out << step.net_score
+            << " " << step.root_uct_score
+            << " " << step.child_uct_score
             << " " << step.bestmove_visits << std::endl;
         debug_str.append(out.str());
     }

@@ -146,8 +146,8 @@ static void parse_commandline(int argc, char *argv[]) {
         ("lagbuffer,b", po::value<int>()->default_value(cfg_lagbuffer_cs),
                         "Safety margin for time usage in centiseconds.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
-                        "Resign when winrate is less than x%.\n"
-                        "-1 uses 10% but scales for handicap.")
+                        "Resign when score is less than x.\n"
+                        "-1 uses 10 but scales for handicap.")
         ("weights,w", po::value<std::string>()->default_value(cfg_weightsfile), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")

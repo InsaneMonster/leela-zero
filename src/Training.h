@@ -49,9 +49,9 @@ public:
     NNPlanes planes;
     std::vector<float> probabilities;
     int to_move;
-    float net_winrate;
-    float root_uct_winrate;
-    float child_uct_winrate;
+    float net_score;
+    float root_uct_score;
+    float child_uct_score;
     int bestmove_visits;
 };
 
@@ -79,7 +79,7 @@ private:
 class Training {
 public:
     static void clear_training();
-    static void dump_training(int winner_score,
+    static void dump_training(float winner_score,
                               const std::string& out_filename);
     static void dump_debug(const std::string& out_filename);
     static void record(Network & network, GameState& state, UCTNode& node);
@@ -94,7 +94,7 @@ private:
     static void process_game(GameState& state, size_t& train_pos, int who_won,
                              const std::vector<int>& tree_moves,
                              OutputChunker& outchunker);
-    static void dump_training(int winner_score,
+    static void dump_training(float winner_score,
                               OutputChunker& outchunker);
     static void dump_debug(OutputChunker& outchunker);
     static void save_training(std::ofstream& out);

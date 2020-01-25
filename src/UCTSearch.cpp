@@ -60,17 +60,17 @@ constexpr int UCTSearch::UNLIMITED_PLAYOUTS;
 class OutputAnalysisData {
 public:
     OutputAnalysisData(const std::string& move, int visits,
-                       float winrate, float policy_prior, std::string pv,
+                       float score, float policy_prior, std::string pv,
                        float lcb, bool lcb_ratio_exceeded)
-    : m_move(move), m_visits(visits), m_winrate(winrate),
+    : m_move(move), m_visits(visits), m_score(score),
       m_policy_prior(policy_prior), m_pv(pv), m_lcb(lcb),
       m_lcb_ratio_exceeded(lcb_ratio_exceeded) {};
 
     std::string get_info_string(int order) const {
         auto tmp = "info move " + m_move
                  + " visits " + std::to_string(m_visits)
-                 + " winrate "
-                 + std::to_string(static_cast<int>(m_winrate * 10000))
+                 + " score "
+                 + std::to_string(static_cast<int>(m_score * 10000))
                  + " prior "
                  + std::to_string(static_cast<int>(m_policy_prior * 10000.0f))
                  + " lcb "
@@ -90,7 +90,7 @@ public:
             }
         }
         if (a.m_visits == b.m_visits) {
-            return a.m_winrate < b.m_winrate;
+            return a.m_score < b.m_score;
         }
         return a.m_visits < b.m_visits;
     }
@@ -98,7 +98,7 @@ public:
 private:
     std::string m_move;
     int m_visits;
-    float m_winrate;
+    float m_score;
     float m_policy_prior;
     std::string m_pv;
     float m_lcb;
@@ -236,6 +236,7 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
     node->virtual_loss();
 
     if (node->expandable()) {
+    	// TODO: this should probably be changed to use the score directly in SearchResult
         if (currstate.get_passes() >= 2) {
             auto score = currstate.final_score();
             result = SearchResult::from_score(score);
@@ -302,12 +303,12 @@ void UCTSearch::dump_stats(FastState & state, UCTNode & parent) {
         auto pv = move + " " + get_pv(tmpstate, *node);
 
         // LeelaZero - Score does not use percentage of winning but a prediction of score
-        // TODO: should also other percentages be removed?
-        myprintf("%4s -> %7d (V: %5.2f%) (LCB: %5.2f%%) (N: %5.2f%%) PV: %s\n",
+		auto const min_score = static_cast<float>(-BOARD_SIZE) * BOARD_SIZE;
+        myprintf("%4s -> %7d (V: %5.2f%) (LCB: %5.2f) (N: %5.2f%%) PV: %s\n",
             move.c_str(),
             node->get_visits(),
             node->get_visits() ? node->get_raw_eval(color): 0.0f,
-            std::max(0.0f, node->get_eval_lcb(color) * 100.0f),
+            std::max(min_score, node->get_eval_lcb(color)),
             node->get_policy() * 100.0f,
             pv.c_str());
     }
@@ -402,8 +403,9 @@ void UCTSearch::tree_stats(const UCTNode& node) {
                  non_leaf_nodes, (1.0f*children_count) / non_leaf_nodes);
     }
 }
+
 /*
-/// Unused in LeelaZero - Score for now
+// Unused in LeelaZero - Score for now
 bool UCTSearch::should_resign(passflag_t passflag, float besteval) {
     if (passflag & UCTSearch::NORESIGN) {
         // resign not allowed
@@ -629,10 +631,11 @@ std::string UCTSearch::get_analysis(int playouts) {
     FastState tempstate = m_rootstate;
     int color = tempstate.board.get_to_move();
 
+
     auto pvstring = get_pv(tempstate, *m_root);
-    float winrate = 100.0f * m_root->get_raw_eval(color);
-    return str(boost::format("Playouts: %d, Win: %5.2f%%, PV: %s")
-        % playouts % winrate % pvstring.c_str());
+    auto score = m_root->get_raw_eval(color);
+    return str(boost::format("Playouts: %d, Score: %5.2f, PV: %s")
+        % playouts % score % pvstring.c_str());
 }
 
 bool UCTSearch::is_running() const {
@@ -681,9 +684,9 @@ size_t UCTSearch::prune_noncontenders(int color, int elapsed_centis, int time_fo
                 visits >= min_required_visits;
             // Avoid pruning moves that could have the best lower confidence
             // bound.
-            const auto high_winrate = visits > 0 ?
+            const auto high_score = visits > 0 ?
                 node->get_raw_eval(color) >= lcb_max : false;
-            const auto prune_this_node = !(has_enough_visits || high_winrate);
+            const auto prune_this_node = !(has_enough_visits || high_score);
 
             if (prune) {
                 node->set_active(!prune_this_node);

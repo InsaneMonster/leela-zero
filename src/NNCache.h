@@ -48,16 +48,16 @@ public:
     static constexpr int MIN_CACHE_COUNT = 6'000;
 
     struct Netresult {
-        // 19x19 board positions
+        // BOARD_SIZE*BOARD_SIZE board positions
         std::array<float, NUM_INTERSECTIONS> policy;
 
         // pass
         float policy_pass;
 
-        // winrate
-        float winrate;
+        // score
+        float score;
 
-        Netresult() : policy_pass(0.0f), winrate(0.0f) {
+        Netresult() : policy_pass(0.0f), score(0.0f) {
             policy.fill(0.0f);
         }
     };

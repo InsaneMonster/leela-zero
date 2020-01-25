@@ -82,8 +82,8 @@ bool UCTNode::create_children(Network & network,
     const auto raw_netlist = network.get_output(
         &state, Network::Ensemble::RANDOM_SYMMETRY);
 
-    // DCNN returns winrate as side to move
-    const auto stm_eval = raw_netlist.winrate;
+    // DCNN returns score as side to move
+    const auto stm_eval = raw_netlist.score;
     const auto to_move = state.board.get_to_move();
     // our search functions evaluate from black's point of view
     // If white set score evaluation to the opposite of its value
@@ -117,7 +117,8 @@ bool UCTNode::create_children(Network & network,
 
     // If we're clever, only try passing if we're winning on the
     // net score and on the board count.
-    if (!allow_pass && stm_eval > 0.8f) {
+    // The threshold is 0.8 * BOARD_SIZE^2, a fraction of the max score
+    if (!allow_pass && stm_eval > 0.8f * BOARD_SIZE * BOARD_SIZE) {
         const auto relative_score =
             (to_move == FastBoard::BLACK ? 1 : -1) * state.final_score();
         if (relative_score >= 0) {
@@ -207,7 +208,6 @@ void UCTNode::update(float eval) {
     // Cache values to avoid race conditions.
     auto old_eval = static_cast<float>(m_blackevals);
     auto old_visits = static_cast<int>(m_visits);
-    // TODO: don't know if following operations should be changed to account for the score
     auto old_delta = old_visits > 0 ? eval - old_eval / old_visits : 0.0f;
     m_visits++;
     accumulate_eval(eval);
@@ -249,7 +249,7 @@ int UCTNode::get_visits() const {
 }
 
 float UCTNode::get_eval_lcb(int color) const {
-    // Lower confidence bound of winrate.
+    // Lower confidence bound of score.
     auto visits = get_visits();
     if (visits < 2) {
         // Return large negative value if not enough visits.
@@ -330,21 +330,21 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
             continue;
         }
 
-        // Set winrate to fpu_eval when there are no visit
-        auto winrate = fpu_eval;
+        // Set score to fpu_eval when there are no visit
+        auto score = fpu_eval;
         if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
             // Someone else is expanding this node, never select it
             // if we can avoid so, because we'd block on it.
-            // Note: we set the winrate to a very low real number in order to avoid being chosen
-            winrate = -1000.0f - fpu_reduction;
+            // Note: we set the score to a very low real number in order to avoid being chosen
+            score = -1000.0f - fpu_reduction;
         } else if (child.get_visits() > 0) {
-            winrate = child.get_eval(color);
+            score = child.get_eval(color);
         }
         const auto psa = child.get_policy();
         const auto denom = 1.0 + child.get_visits();
         // TODO: cfg_puct is a constant, maybe required to be changed
         const auto puct = cfg_puct * psa * (numerator / denom);
-        const auto value = winrate + puct;
+        const auto value = score + puct;
         assert(value > std::numeric_limits<double>::lowest());
 
         if (value > best_value) {
