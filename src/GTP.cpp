@@ -658,7 +658,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         // start thinking
         {
             game.set_to_move(who);
-            // Outputs winrate and pvs for lz-genmove_analyze
+            // Outputs score and pvs for lz-genmove_analyze
             int move = search->think(who);
             game.play_move(move);
 
@@ -673,7 +673,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (cfg_allow_pondering) {
             // now start pondering
             if (!game.has_resigned()) {
-                // Outputs winrate and pvs through gtp for lz-genmove_analyze
+                // Outputs score and pvs through gtp for lz-genmove_analyze
                 search->ponder();
             }
         }
@@ -699,7 +699,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         // Now start pondering.
         if (!game.has_resigned()) {
             cfg_analyze_tags = tags;
-            // Outputs winrate and pvs through gtp
+            // Outputs score and pvs through gtp
             game.set_to_move(tags.who());
             search->ponder();
         }
@@ -1119,7 +1119,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         std::vector<std::string> cmdvector{};
         std::string winner_score, filename;
-        int final_score;
+        float final_score;
 
         std::string cmdstr;
         while (cmdstream >> cmdstr) 
@@ -1133,7 +1133,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             // If exception is thrown invalid score argument is given to the function
             try
             {
-                final_score = int(std::stof(winner_score));
+                final_score = float(std::stof(winner_score));
             }
             catch (const std::invalid_argument& e_invalid_argument)
             {
@@ -1153,7 +1153,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 // If exception is thrown invalid score argument is given to the function
                 try
                 {
-                    final_score = -int(std::stof(winner_score));
+                    final_score = -std::stof(winner_score);
                 }
                 catch (const std::invalid_argument& e_invalid_argument)
                 {
@@ -1167,7 +1167,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 // If exception is thrown invalid score argument is given to the function
                 try
                 {
-                    final_score = int(std::stof(winner_score));
+                    final_score = std::stof(winner_score);
                 }
                 catch (const std::invalid_argument& e_invalid_argument)
                 {
