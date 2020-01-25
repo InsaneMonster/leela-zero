@@ -97,6 +97,7 @@ private:
         WRONG_GTP,
         LAUNCH_FAILURE
     };
+	const int board_size = 9;
     Engine m_engine;
     QString m_winner;
     QString m_fileName;

@@ -39,7 +39,7 @@ Game::Game(const Engine& engine) :
 bool Game::checkGameEnd() {
     return (m_resignation ||
             m_passes > 1 ||
-            m_moveNum > (19 * 19 * 2));
+            m_moveNum > (board_size * board_size * 2));
 }
 
 void Game::error(int errnum) {
@@ -467,7 +467,7 @@ bool Game::fixSgf(const Engine& whiteEngine, const bool resignation,
 
 bool Game::dumpTraining() {
     return sendGtpCommand(
-        qPrintable("dump_training " + m_winner + " " + m_fileName + ".txt"));
+        qPrintable("dump_training " + m_winner + " " + m_result + " " + m_fileName + ".txt"));
 }
 
 bool Game::dumpDebug() {
