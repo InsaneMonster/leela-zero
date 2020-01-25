@@ -12,3 +12,7 @@ leelaz_opencl_tuning
 /build-validation-*
 .vs/
 build/
+/msvc/VS2017/best-network
+/best-network
+/msvc/VS2017/networks
+/initial_9x9.txt
