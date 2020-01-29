@@ -340,12 +340,23 @@ bool Game::getScore() {
         readLine(readBuffer, 256);
         m_result = readBuffer;
         m_result.remove(0, 2);
-        if (readBuffer[2] == 'W') {
+        if (readBuffer[2] == 'W') 
+		{
             m_winner = QString(QStringLiteral("white"));
-        } else if (readBuffer[2] == 'B') {
-            m_winner = QString(QStringLiteral("black"));
+        	// Make sure the score is signed (minus when white wins) and it's just a float number
+			m_score = m_result.trimmed();
+			m_score.remove(0, 2);
+			m_score = "-" + m_score;
         }
-        if (!eatNewLine()) {
+		else if (readBuffer[2] == 'B') 
+		{
+            m_winner = QString(QStringLiteral("black"));
+			// Make sure the score is signed (omitted when black wins) and it's just a float number
+			m_score = m_result.trimmed();
+			m_score.remove(0, 2);
+        }
+        if (!eatNewLine()) 
+		{
             error(Game::PROCESS_DIED);
             return false;
         }
@@ -465,9 +476,10 @@ bool Game::fixSgf(const Engine& whiteEngine, const bool resignation,
     return true;
 }
 
-bool Game::dumpTraining() {
+bool Game::dumpTraining()
+{
     return sendGtpCommand(
-        qPrintable("dump_training " + m_winner + " " + m_result + " " + m_fileName + ".txt"));
+        qPrintable("dump_training " + m_score + " " + m_fileName + ".txt"));
 }
 
 bool Game::dumpDebug() {

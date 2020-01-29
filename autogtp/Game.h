@@ -103,6 +103,7 @@ private:
     QString m_fileName;
     QString m_moveDone;
     QString m_result;
+	QString m_score;
     bool m_isHandicap;
     bool m_resignation;
     bool m_blackToMove;
