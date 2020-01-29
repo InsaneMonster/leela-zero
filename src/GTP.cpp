@@ -569,7 +569,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 gtp_printf(id, "");
             }
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: boardsize");
         }
 
         return;
@@ -595,7 +595,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             }
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: clear_board");
         }
 
         return;
@@ -611,11 +611,12 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (!cmdstream.fail()) {
             if (!game.play_textmove(color, vertex)) {
                 gtp_fail_printf(id, "illegal move");
+                gtp_fail_printf(id, "illegal move");
             } else {
                 gtp_printf(id, "");
             }
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: play");
         }
         return;
     } else if (command.find("genmove") == 0
@@ -740,7 +741,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 }
             }
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: kgs_genmove_cleanup");
         }
         return;
     } else if (command.find("undo") == 0) {
@@ -789,7 +790,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: time_settings");
         }
         return;
     } else if (command.find("time_left") == 0) {
@@ -823,7 +824,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 }
             }
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: time_left");
         }
         return;
     } else if (command.find("auto") == 0) {
@@ -1034,14 +1035,14 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             cmdstream >> maintime >> byotime >> byoperiods;
             game.set_timecontrol(maintime * 100, byotime * 100, 0, byoperiods);
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: kgs-time_settings invalid tc_type");
             return;
         }
 
         if (!cmdstream.fail()) {
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: kgs-time_settings");
         }
         return;
     } else if (command.find("netbench") == 0) {
@@ -1094,7 +1095,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (!cmdstream.fail()) {
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: load_training");
         }
 
         return;
@@ -1110,7 +1111,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (!cmdstream.fail()) {
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: save_training");
         }
 
         return;
@@ -1137,10 +1138,9 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             }
             catch (const std::invalid_argument& e_invalid_argument)
             {
-                gtp_fail_printf(id, "syntax not understood");
+                gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument on size 3");
                 return;
             }
-
         }
         else if(cmdvector.size() == 4)
         {
@@ -1157,7 +1157,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 }
                 catch (const std::invalid_argument& e_invalid_argument)
                 {
-                    gtp_fail_printf(id, "syntax not understood");
+                    gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument on size 4");
                     return;
                 }
 
@@ -1171,19 +1171,19 @@ void GTP::execute(GameState & game, const std::string& xinput) {
                 }
                 catch (const std::invalid_argument& e_invalid_argument)
                 {
-                    gtp_fail_printf(id, "syntax not understood");
+                    gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument on size 4");
                     return;
                 }
             }
             else
             {
-                gtp_fail_printf(id, "syntax not understood");
+                gtp_fail_printf(id, "syntax not understood: dump_training invalid winner color");
                 return;
             }
         }
         else
         {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: dump_training wrong command vector size");
             return;
         }
 
@@ -1193,7 +1193,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (!cmdstream.fail() || cmdstream.eof()) {
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: dump_training");
         }
 
         return;
@@ -1209,7 +1209,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (!cmdstream.fail()) {
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: dump_debug");
         }
 
         return;
@@ -1225,7 +1225,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         if (!cmdstream.fail()) {
             gtp_printf(id, "");
         } else {
-            gtp_fail_printf(id, "syntax not understood");
+            gtp_fail_printf(id, "syntax not understood: dump_supervised");
         }
         return;
     } else if (command.find("lz-memory_report") == 0) {
