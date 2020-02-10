@@ -340,27 +340,25 @@ bool Game::getScore() {
         readLine(readBuffer, 256);
         m_result = readBuffer;
         m_result.remove(0, 2);
+		// Make sure the score is just a float number
+		m_score = m_result.trimmed();
+		m_score.remove(0, 2);
+    	// Assign the winner
         if (readBuffer[2] == 'W') 
 		{
             m_winner = QString(QStringLiteral("white"));
-        	// Make sure the score is signed (minus when white wins) and it's just a float number
-			m_score = m_result.trimmed();
-			m_score.remove(0, 2);
-			m_score = "-" + m_score;
         }
 		else if (readBuffer[2] == 'B') 
 		{
             m_winner = QString(QStringLiteral("black"));
-			// Make sure the score is signed (omitted when black wins) and it's just a float number
-			m_score = m_result.trimmed();
-			m_score.remove(0, 2);
         }
         if (!eatNewLine()) 
 		{
             error(Game::PROCESS_DIED);
             return false;
         }
-        QTextStream(stdout) << "Score: " << m_result;
+		QTextStream(stdout) << "Winner: " << m_winner;
+        QTextStream(stdout) << "Score: " << m_score;
     }
     if (m_winner.isNull()) {
         QTextStream(stdout) << "No winner found" << endl;
@@ -479,7 +477,7 @@ bool Game::fixSgf(const Engine& whiteEngine, const bool resignation,
 bool Game::dumpTraining()
 {
     return sendGtpCommand(
-        qPrintable("dump_training " + m_score + " " + m_fileName + ".txt"));
+        qPrintable("dump_training " + m_winner + " " + m_score + " " + m_fileName + ".txt"));
 }
 
 bool Game::dumpDebug() {
