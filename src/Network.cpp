@@ -836,8 +836,8 @@ Network::Netresult Network::get_output_internal(
     const auto score_out =
         innerproduct<VALUE_LAYER, 1, false>(score_data, m_ip2_val_w, m_ip2_val_b);
 
-    // Normalize the network output from inside [-1..1] to inside [-BOARD_SIZE^2..BOARD_SIZE^2] to compute the expected score
-    const auto score = BOARD_SIZE * BOARD_SIZE * std::tanh(score_out[0]);
+    // Rescale the network output to prevent too high numbers but preserve its linearity
+    const auto score = RESCALE_FACTOR * score_out[0];
 
     Netresult result;
 

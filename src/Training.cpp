@@ -209,9 +209,9 @@ void Training::record(Network & network, GameState& state, UCTNode& root) {
     m_data.emplace_back(step);
 }
 
-void Training::dump_training(float winner_score, const std::string& filename) {
+void Training::dump_training(int winner, float score, const std::string& filename) {
     auto chunker = OutputChunker{filename, true};
-    dump_training(winner_score, chunker);
+    dump_training(winner, score, chunker);
 }
 
 void Training::save_training(const std::string& filename) {
@@ -242,7 +242,7 @@ void Training::load_training(std::ifstream& in) {
     }
 }
 
-void Training::dump_training(float winner_score, OutputChunker& outchunk) {
+void Training::dump_training(int winner, float score, OutputChunker& outchunk) {
     auto training_str = std::string{};
     for (const auto& step : m_data) {
         auto out = std::stringstream{};
@@ -276,16 +276,15 @@ void Training::dump_training(float winner_score, OutputChunker& outchunk) {
         }
         out << std::endl;
         // And the game result
-        // In LeelaZero - Score the game result is not a "boolean" (1 if black wins, -1 if white wins) but a score (positive if black, negative if white)
+        // In LeelaZero - Score the game result is not a "boolean" (1 if black wins, -1 if white wins) but a score (positive if side to move wins, negative if it loses)
         // Change the sign of the score depending on the winner from the point of view of the current step for each step (inverting if the current step if not the winner)
-		auto const winner_color = winner_score >= 0 ? 0 : 1;
-		if (step.to_move == winner_color) 
+		if (step.to_move == winner) 
 		{
-			out << std::to_string(winner_score);
+			out << std::to_string(score);
 		}
 		else 
 		{
-			out << std::to_string(-winner_score);
+			out << std::to_string(-score);
 		}
         out << std::endl;
         training_str.append(out.str());
@@ -318,7 +317,7 @@ void Training::dump_debug(OutputChunker& outchunk) {
 }
 
 /// Process supervised games, not used for self-play
-void Training::process_game(GameState& state, size_t& train_pos, int who_won,
+void Training::process_game(GameState& state, size_t& train_pos, int who_won, float score,
                             const std::vector<int>& tree_moves,
                             OutputChunker& outchunker) {
     clear_training();
@@ -358,7 +357,7 @@ void Training::process_game(GameState& state, size_t& train_pos, int who_won,
         counter++;
     } while (state.forward_move() && counter < tree_moves.size());
 
-    dump_training(who_won, outchunker);
+    dump_training(who_won, score, outchunker);
 }
 
 void Training::dump_supervised(const std::string& sgf_name,
@@ -397,11 +396,17 @@ void Training::dump_supervised(const std::string& sgf_name,
             continue;
         }
 
-        auto who_won = sgftree->get_winner();
+        auto const who_won = sgftree->get_winner();
         // Accept all komis and handicaps, but reject no usable result
         if (who_won != FastBoard::BLACK && who_won != FastBoard::WHITE) {
             continue;
         }
+
+		auto const score = sgftree->get_state()->final_score();
+		// Reject no usable result
+		if (score < -BOARD_SIZE * BOARD_SIZE || score > BOARD_SIZE * BOARD_SIZE) {
+			continue;
+		}
 
         auto state =
             std::make_unique<GameState>(sgftree->follow_mainline_state());
@@ -410,7 +415,7 @@ void Training::dump_supervised(const std::string& sgf_name,
             continue;
         }
 
-        process_game(*state, train_pos, who_won, tree_moves,
+        process_game(*state, train_pos, who_won, score, tree_moves,
                     outchunker);
     }
 

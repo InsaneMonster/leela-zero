@@ -86,6 +86,7 @@ public:
     static constexpr auto OUTPUTS_POLICY = 2;
     static constexpr auto OUTPUTS_VALUE = 1;
     static constexpr auto VALUE_LAYER = 256;
+	static constexpr auto RESCALE_FACTOR = 0.1f;
 
     void initialize(int playouts, const std::string & weightsfile);
 

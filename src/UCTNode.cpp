@@ -342,7 +342,6 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
         const auto psa = child.get_policy();
         const auto denom = 1.0 + child.get_visits();
-        // TODO: cfg_puct is a constant, maybe required to be changed
         const auto puct = cfg_puct * psa * (numerator / denom);
         const auto value = score + puct;
         assert(value > std::numeric_limits<double>::lowest());

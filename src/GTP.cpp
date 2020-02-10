@@ -1121,73 +1121,49 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         std::vector<std::string> cmdvector{};
         std::string winner_score, filename;
         float final_score;
+		int who_won;
 
         std::string cmdstr;
         while (cmdstream >> cmdstr) 
             cmdvector.push_back(cmdstr);
 
-        // Check the size of the command vector to control if signed score or winner color and unsigned score is given
-        if(cmdvector.size() == 3)
-        {
-            winner_score = cmdvector[1];
-            filename = cmdvector[2];
-            // If exception is thrown invalid score argument is given to the function
-            try
-            {
-                final_score = float(std::stof(winner_score));
-            }
-            catch (const std::invalid_argument& e_invalid_argument)
-            {
-                gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument on size 3");
-                return;
-            }
-        }
-        else if(cmdvector.size() == 4)
+        if(cmdvector.size() == 4)
         {
             auto winner_color = cmdvector[1];
             winner_score = cmdvector[2];
             filename = cmdvector[3];
-            // If winner is white, final score is considered negative otherwise positive
-            if (winner_color == "w" || winner_color == "white") 
-            {
-                // If exception is thrown invalid score argument is given to the function
-                try
-                {
-                    final_score = -std::stof(winner_score);
-                }
-                catch (const std::invalid_argument& e_invalid_argument)
-                {
-                    gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument on size 4");
-                    return;
-                }
 
-            }
-            else if (winner_color == "b" || winner_color == "black") 
+			if (winner_color == "w" || winner_color == "white") 
+			{
+				who_won = FullBoard::WHITE;
+			}
+			else if (winner_color == "b" || winner_color == "black") 
+			{
+				who_won = FullBoard::BLACK;
+			}
+			else 
+			{
+				gtp_fail_printf(id, "syntax not understood: dump_training invalid winner color");
+				return;
+			}
+
+            try
             {
-                // If exception is thrown invalid score argument is given to the function
-                try
-                {
-                    final_score = std::stof(winner_score);
-                }
-                catch (const std::invalid_argument& e_invalid_argument)
-                {
-                    gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument on size 4");
-                    return;
-                }
+                final_score = std::stof(winner_score);
             }
-            else
+            catch (const std::invalid_argument& e_invalid_argument)
             {
-                gtp_fail_printf(id, "syntax not understood: dump_training invalid winner color");
+                gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument");
                 return;
-            }
+            }     	
         }
         else
         {
-            gtp_fail_printf(id, "syntax not understood: dump_training wrong command vector size");
+            gtp_fail_printf(id, "syntax not understood: dump_training wrong command line size");
             return;
         }
 
-        Training::dump_training(final_score, filename);
+        Training::dump_training(who_won, final_score, filename);
 
         // If an error not occurred or the end of file is reached it's all fine
         if (!cmdstream.fail() || cmdstream.eof()) {

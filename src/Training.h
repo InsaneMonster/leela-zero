@@ -79,7 +79,7 @@ private:
 class Training {
 public:
     static void clear_training();
-    static void dump_training(float winner_score,
+    static void dump_training(int winner, float score,
                               const std::string& out_filename);
     static void dump_debug(const std::string& out_filename);
     static void record(Network & network, GameState& state, UCTNode& node);
@@ -91,10 +91,10 @@ public:
 
 private:
     static TimeStep::NNPlanes get_planes(const GameState* const state);
-    static void process_game(GameState& state, size_t& train_pos, int who_won,
+    static void process_game(GameState& state, size_t& train_pos, int who_won, float score,
                              const std::vector<int>& tree_moves,
                              OutputChunker& outchunker);
-    static void dump_training(float winner_score,
+    static void dump_training(int winner, float score,
                               OutputChunker& outchunker);
     static void dump_debug(OutputChunker& outchunker);
     static void save_training(std::ofstream& out);
