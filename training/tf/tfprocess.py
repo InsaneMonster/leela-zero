@@ -25,6 +25,9 @@ import unittest
 
 from mixprec import float32_variable_storage_getter, LossScalingOptimizer
 
+board_size: int = 9
+vertex_number: int = board_size * board_size
+rescale_factor: float = 1
 
 def weight_variable(name, shape, dtype):
     """Xavier initialization"""
@@ -152,6 +155,14 @@ class TFProcess:
         self.training = tf.placeholder(tf.bool)
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
+        # Empty attributes
+        self.batch_size = None
+        self.macrobatch = None
+        self.logbase = None
+        self.planes = None
+        self.probs = None
+        self.score = None
+
     def init(self, batch_size, macrobatch=1, gpus_num=None, logbase='leelalogs'):
         self.batch_size = batch_size
         self.macrobatch = macrobatch
@@ -159,29 +170,29 @@ class TFProcess:
         # Input batch placeholders
         self.planes = tf.placeholder(tf.string, name='in_planes')
         self.probs = tf.placeholder(tf.string, name='in_probs')
-        self.winner = tf.placeholder(tf.string, name='in_winner')
+        self.score = tf.placeholder(tf.string, name='in_score')
 
         # Mini-batches come as raw packed strings. Decode
         # into tensors to feed into network.
         planes = tf.decode_raw(self.planes, tf.uint8)
         probs = tf.decode_raw(self.probs, tf.float32)
-        winner = tf.decode_raw(self.winner, tf.float32)
+        score = tf.decode_raw(self.score, tf.float32)
 
         planes = tf.cast(planes, self.model_dtype)
 
-        planes = tf.reshape(planes, (batch_size, 18, 19*19))
-        probs = tf.reshape(probs, (batch_size, 19*19 + 1))
-        winner = tf.reshape(winner, (batch_size, 1))
+        planes = tf.reshape(planes, (batch_size, 18, board_size*board_size))
+        probs = tf.reshape(probs, (batch_size, board_size*board_size + 1))
+        score = tf.reshape(score, (batch_size, 1))
 
         if gpus_num is None:
             gpus_num = self.gpus_num
-        self.init_net(planes, probs, winner, gpus_num)
+        self.init_net(planes, probs, score, gpus_num)
 
-    def init_net(self, planes, probs, winner, gpus_num):
+    def init_net(self, planes, probs, score, gpus_num):
         self.y_ = probs   # (tf.float32, [None, 362])
         self.sx = tf.split(planes, gpus_num)
         self.sy_ = tf.split(probs, gpus_num)
-        self.sz_ = tf.split(winner, gpus_num)
+        self.sz_ = tf.split(score, gpus_num)
         self.batch_norm_count = 0
         self.reuse_var = None
 
@@ -205,7 +216,7 @@ class TFProcess:
             for i in range(gpus_num):
                 with tf.device("/gpu:%d" % i):
                     with tf.name_scope("tower_%d" % i):
-                        loss, policy_loss, mse_loss, reg_term, y_conv = self.tower_loss(
+                        loss, policy_loss, mse_loss, reg_term, y_conv, pred, label = self.tower_loss(
                             self.sx[i], self.sy_[i], self.sz_[i])
 
                         # Reset batchnorm key to 0.
@@ -229,6 +240,9 @@ class TFProcess:
         self.reg_term = tf.reduce_mean(tower_reg_term)
         self.y_conv = tf.concat(tower_y_conv, axis=0)
         self.mean_grads = self.average_gradients(tower_grads)
+
+        self.pred = pred
+        self.label = label
 
         # Do swa after we contruct the net
         if self.swa_enabled is True:
@@ -348,7 +362,7 @@ class TFProcess:
         # want to reduce the factor in front of self.mse_loss here.
         loss = 1.0 * policy_loss + 1.0 * mse_loss + reg_term
 
-        return loss, policy_loss, mse_loss, reg_term, y_conv
+        return loss, policy_loss, mse_loss, reg_term, y_conv, z_conv, z_
 
     def assign(self, var, values):
         try:
@@ -406,19 +420,19 @@ class TFProcess:
     def measure_loss(self, batch, training=False):
         # Measure loss over one batch. If training is true, also
         # accumulate the gradient and increment the global step.
-        ops = [self.policy_loss, self.mse_loss, self.reg_term, self.accuracy ]
+        ops = [self.policy_loss, self.mse_loss, self.reg_term, self.accuracy, self.pred, self.label]
         if training:
             ops += [self.grad_op, self.step_op],
         r = self.session.run(ops, feed_dict={self.training: training,
-                           self.planes: batch[0],
-                           self.probs: batch[1],
-                           self.winner: batch[2]})
+                             self.planes: batch[0],
+                             self.probs: batch[1],
+                             self.score: batch[2]})
         # Google's paper scales mse by 1/4 to a [0,1] range, so we do the same here
         return {'policy': r[0], 'mse': r[1]/4., 'reg': r[2],
-                'accuracy': r[3], 'total': r[0]+r[1]+r[2] }
+                'accuracy': r[3], 'total': r[0]+r[1]+r[2]}
 
     def process(self, train_data, test_data):
-        info_steps=1000
+        info_steps = 1000
         stats = Stats()
         timer = Timer()
         while True:
@@ -445,7 +459,7 @@ class TFProcess:
                     tf.Summary(value=summaries), steps)
                 stats.clear()
 
-            if steps % 8000 == 0:
+            if steps % 5000 == 0:
                 test_stats = Stats()
                 test_batches = 800 # reduce sample mean variance by ~28x
                 for _ in range(0, test_batches):
@@ -596,8 +610,8 @@ class TFProcess:
 
     def construct_net(self, planes):
         # NCHW format
-        # batch, 18 channels, 19 x 19
-        x_planes = tf.reshape(planes, [-1, 18, 19, 19])
+        # batch, 18 channels, board_size * board_size
+        x_planes = tf.reshape(planes, [-1, 18, board_size, board_size])
 
         # Input convolution
         flow = self.conv_block(x_planes, filter_size=3,
@@ -615,9 +629,9 @@ class TFProcess:
                                    input_channels=self.residual_filters,
                                    output_channels=2,
                                    name="policy_head")
-        h_conv_pol_flat = tf.reshape(conv_pol, [-1, 2 * 19 * 19])
-        W_fc1 = weight_variable("w_fc_1", [2 * 19 * 19, (19 * 19) + 1], self.model_dtype)
-        b_fc1 = bias_variable("b_fc_1", [(19 * 19) + 1], self.model_dtype)
+        h_conv_pol_flat = tf.reshape(conv_pol, [-1, 2 * board_size * board_size])
+        W_fc1 = weight_variable("w_fc_1", [2 * board_size * board_size, (board_size * board_size) + 1], self.model_dtype)
+        b_fc1 = bias_variable("b_fc_1", [(board_size * board_size) + 1], self.model_dtype)
         self.add_weights(W_fc1)
         self.add_weights(b_fc1)
         h_fc1 = tf.add(tf.matmul(h_conv_pol_flat, W_fc1), b_fc1)
@@ -627,8 +641,8 @@ class TFProcess:
                                    input_channels=self.residual_filters,
                                    output_channels=1,
                                    name="value_head")
-        h_conv_val_flat = tf.reshape(conv_val, [-1, 19 * 19])
-        W_fc2 = weight_variable("w_fc_2", [19 * 19, 256], self.model_dtype)
+        h_conv_val_flat = tf.reshape(conv_val, [-1, board_size * board_size])
+        W_fc2 = weight_variable("w_fc_2", [board_size * board_size, 256], self.model_dtype)
         b_fc2 = bias_variable("b_fc_2", [256], self.model_dtype)
         self.add_weights(W_fc2)
         self.add_weights(b_fc2)
@@ -637,7 +651,7 @@ class TFProcess:
         b_fc3 = bias_variable("b_fc_3", [1], self.model_dtype)
         self.add_weights(W_fc3)
         self.add_weights(b_fc3)
-        h_fc3 = tf.nn.tanh(tf.add(tf.matmul(h_fc2, W_fc3), b_fc3))
+        h_fc3 = rescale_factor * tf.add(tf.matmul(h_fc2, W_fc3), b_fc3)
 
         return h_fc1, h_fc3
 
@@ -690,7 +704,7 @@ class TFProcess:
                     [self.loss, self.update_ops],
                     feed_dict={self.training: True,
                                self.planes: batch[0], self.probs: batch[1],
-                               self.winner: batch[2]})
+                               self.score: batch[2]})
 
         self.save_leelaz_weights(swa_path)
         # restore the saved network.
@@ -718,11 +732,11 @@ class TFProcessTest(unittest.TestCase):
                 tfprocess.residual_filters, tfprocess.residual_filters))
         # policy
         data.extend(gen_block(1, tfprocess.residual_filters, 2))
-        data.append([0.4] * 2*19*19 * (19*19+1))
-        data.append([0.5] * (19*19+1))
+        data.append([0.4] * 2*board_size*board_size * (board_size*board_size+1))
+        data.append([0.5] * (board_size*board_size+1))
         # value
         data.extend(gen_block(1, tfprocess.residual_filters, 1))
-        data.append([0.6] * 19*19 * 256)
+        data.append([0.6] * board_size*board_size * 256)
         data.append([0.7] * 256)
         data.append([0.8] * 256)
         data.append([0.9] * 1)

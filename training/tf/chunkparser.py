@@ -32,33 +32,40 @@ import threading
 import time
 import unittest
 
-# 16 planes, 1 side to move, 1 x 362 probs, 1 winner = 19 lines
+# 16 planes, 1 side to move, 1 x (board_size^2 + 1) probs, 1 score = 19 lines
 DATA_ITEM_LINES = 16 + 1 + 1 + 1
+
+board_size: int = 9
+vertex_number: int = board_size * board_size
+
 
 def remap_vertex(vertex, symmetry):
     """
         Remap a go board coordinate according to a symmetry.
     """
-    assert vertex >= 0 and vertex < 361
-    x = vertex % 19
-    y = vertex // 19
+    assert 0 <= vertex < vertex_number
+    x = vertex % board_size
+    y = vertex // board_size
     if symmetry >= 4:
         x, y = y, x
         symmetry -= 4
     if symmetry == 1 or symmetry == 3:
-        x = 19 - x - 1
+        x = board_size - x - 1
     if symmetry == 2 or symmetry == 3:
-        y = 19 - y - 1
-    return y * 19 + x
+        y = board_size - y - 1
+    return y * board_size + x
+
 
 # Interface for a chunk data source.
 class ChunkDataSrc:
     def __init__(self, items):
         self.items = items
+
     def next(self):
         if not self.items:
             return None
         return self.items.pop()
+
 
 class ChunkParser:
     def __init__(self, chunkdatasrc, shuffle_size=1, sample=1,
@@ -96,25 +103,17 @@ class ChunkParser:
             unpack bit vectors.
             7950 bytes long.
         """
-        # Build probility reflection tables.
+        # Build probability reflection tables.
         # The last element is 'pass' and is identity mapped.
-        self.prob_reflection_table = [
-            [remap_vertex(vertex, sym)
-              for vertex in range(361)]+[361] for sym in range(8)]
+        self.prob_reflection_table = [[remap_vertex(vertex, sym) for vertex in range(vertex_number)]+[vertex_number] for sym in range(8)]
         # Build full 16-plane reflection tables.
-        self.full_reflection_table = [
-            np.array([remap_vertex(vertex, sym) + p * 361
-                for p in range(16) for vertex in range(361)])
-                    for sym in range(8)]
+        self.full_reflection_table = [np.array([remap_vertex(vertex, sym) + p * vertex_number for p in range(16) for vertex in range(vertex_number)]) for sym in range(8)]
         # Convert both to np.array.
         # This avoids a conversion step when they're actually used.
-        self.prob_reflection_table = [
-            np.array(x, dtype=np.int64) for x in self.prob_reflection_table ]
-        self.full_reflection_table = [
-            np.array(x, dtype=np.int64) for x in self.full_reflection_table ]
+        self.prob_reflection_table = [np.array(x, dtype=np.int64) for x in self.prob_reflection_table]
+        self.full_reflection_table = [np.array(x, dtype=np.int64) for x in self.full_reflection_table]
         # Build the all-zeros and all-ones flat planes, used for color-to-move.
-        self.flat_planes = [ b'\1'*361 + b'\0'*361, b'\0'*361 + b'\1'*361 ]
-
+        self.flat_planes = [b'\1'*vertex_number + b'\0'*vertex_number, b'\0'*vertex_number + b'\1'*vertex_number]
         # set the down-sampling rate
         self.sample = sample
         # set the mini-batch size
@@ -125,7 +124,6 @@ class ChunkParser:
         if workers is None:
             workers = max(1, mp.cpu_count() - 2)
         print("Using {} worker processes.".format(workers))
-
         # Start the child workers running
         self.readers = []
         for _ in range(workers):
@@ -135,27 +133,44 @@ class ChunkParser:
                        daemon=True).start()
             self.readers.append(read)
             write.close()
+        # Initialize and init structures
+        self.v2_struct = None
+        self.raw_struct = None
         self.init_structs()
 
     def init_structs(self):
         # struct.Struct doesn't pickle, so it needs to be separately
         # constructed in workers.
-
-        # V2 Format
-        # int32 version (4 bytes)
-        # (19*19+1) float32 probabilities (1448 bytes)
-        # 19*19*16 packed bit planes (722 bytes)
-        # uint8 side_to_move (1 byte)
-        # uint8 is_winner (1 byte)
-        self.v2_struct = struct.Struct('4s1448s722sBB')
-
-        # Struct used to return data from child workers.
-        # float32 winner
-        # float32*392 probs
-        # uint*6498 planes
-        # (order is to ensure that no padding is required to
-        #  make float32 be 32-bit aligned)
-        self.raw_struct = struct.Struct('4s1448s6498s')
+        if board_size == 19:
+            # V2 Format
+            # 1 int32 version => *4 => 4 bytes
+            # 19*19+1 = 362 float32 probabilities => *4 => 1448 bytes
+            # 19*19*16 = 5776 packed bit planes => /8 => 722 bytes
+            # 1 uint8 side_to_move => *1 => 1 byte
+            # 1 float32 score => *4 => 4 bytes
+            self.v2_struct = struct.Struct('4s1448s722sB4s')
+            # Struct used to return data from child workers.
+            # 1 float32 score => *4 => 4 bytes
+            # 19*19+1 = 362 float32 probs => *4 => 1448 bytes
+            # 19*19*18 = 6498 uint planes => *1 => 6498 bytes
+            # (order is to ensure that no padding is required to
+            #  make float32 be 32-bit aligned)
+            self.raw_struct = struct.Struct('4s1448s6498s')
+        if board_size == 9:
+            # V2 Format
+            # 1 int32 version => *4 => 4 bytes
+            # 9*9+1 = 82 float32 probabilities => *4 => 328 bytes
+            # 9*9*16 = 1296 packed bit planes => /4 => 162 bytes
+            # 1 uint8 side_to_move => *1  => 1 byte
+            # 1 float32 score => *4 => 4 bytes
+            self.v2_struct = struct.Struct('4s328s162sB4s')
+            # Struct used to return data from child workers.
+            # 1 float32 score => *4 => 4 bytes
+            # 9*9+1 = 82 float32 probs => *4 => 328 bytes
+            # 9*9*18 = 1458 uint planes => *1 => 1458 bytes
+            # (order is to ensure that no padding is required to
+            #  make float32 be 32-bit aligned)
+            self.raw_struct = struct.Struct('4s328s1458s')
 
     def convert_v1_to_v2(self, text_item):
         """
@@ -164,23 +179,24 @@ class ChunkParser:
             Converts a set of 19 lines of text into a byte string
             [[plane_1],[plane_2],...],...
             [probabilities],...
-            winner,...
+            score,...
         """
         # We start by building a list of 16 planes,
-        # each being a 19*19 == 361 element array
+        # each being a board_size^2 element array
         # of type np.uint8
         planes = []
         for plane in range(0, 16):
-            # first 360 first bits are 90 hex chars, encoded MSB
-            hex_string = text_item[plane][0:90]
+            # If the board size is 9: first 360 first bits are 20 hex chars, encoded MSB
+            # Else: first 360 first bits are 90 hex chars, encoded MSB
+            chars_number = 20 if board_size == 9 else 90
+            hex_string = text_item[plane][0:chars_number]
             try:
-                array = np.unpackbits(np.frombuffer(
-                    bytearray.fromhex(hex_string), dtype=np.uint8))
+                array = np.frombuffer(bytearray.fromhex(hex_string), dtype=np.uint8)
             except:
                 return False, None
             # Remaining bit that didn't fit. Encoded LSB so
             # it needs to be specially handled.
-            last_digit = text_item[plane][90]
+            last_digit = text_item[plane][chars_number]
             if not (last_digit == "0" or last_digit == "1"):
                 return False, None
             # Apply symmetry and append
@@ -204,49 +220,48 @@ class ChunkParser:
             # Work around a bug in leela-zero v0.3, skipping any
             # positions that have a NaN in the probabilities list.
             return False, None
-        if not(len(probabilities) == 362):
+        if not(len(probabilities) == board_size * board_size + 1):
             return False, None
 
         probs = probabilities.tobytes()
-        if not(len(probs) == 362 * 4):
+        if not(len(probs) == (board_size * board_size + 1) * 4):
             return False, None
 
-        # Load the game winner color.
-        winner = float(text_item[18])
-        if not(winner == 1.0 or winner == -1.0):
+        # Load the final score
+        score = float(text_item[18])
+        if not(-(board_size * board_size) <= score <= (board_size * board_size)):
             return False, None
-        winner = int((winner + 1) / 2)
 
         version = struct.pack('i', 1)
+        score = struct.pack('f', score)
 
-        return True, self.v2_struct.pack(version, probs, planes, stm, winner)
+        return True, self.v2_struct.pack(version, probs, planes, stm, score)
 
     def v2_apply_symmetry(self, symmetry, content):
         """
             Apply a random symmetry to a v2 record.
         """
-        assert symmetry >= 0 and symmetry < 8
+        assert 0 <= symmetry < 8
 
         # unpack the record.
-        (ver, probs, planes, to_move, winner) = self.v2_struct.unpack(content)
+        ver, probs, planes, to_move, score = self.v2_struct.unpack(content)
 
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
         # We use the full length reflection tables to apply symmetry
         # to all 16 planes simultaneously
         planes = planes[self.full_reflection_table[symmetry]]
-        assert len(planes) == 19*19*16
+        assert len(planes) == board_size * board_size * 16
         planes = np.packbits(planes)
         planes = planes.tobytes()
 
         probs = np.frombuffer(probs, dtype=np.float32)
         # Apply symmetries to the probabilities.
         probs = probs[self.prob_reflection_table[symmetry]]
-        assert len(probs) == 362
+        assert len(probs) == board_size * board_size + 1
         probs = probs.tobytes()
 
         # repack record.
-        return self.v2_struct.pack(ver, probs, planes, to_move, winner)
-
+        return self.v2_struct.pack(ver, probs, planes, to_move, score)
 
     def convert_v2_to_tuple(self, content):
         """
@@ -257,29 +272,29 @@ class ChunkParser:
                 float probs[19*18+1]
                 byte planes[19*19*16/8]
                 byte to_move
-                byte winner
+                float32 score
 
             packed tensor formats are
-                float32 winner
+                float32 score
                 float32*362 probs
                 uint8*6498 planes
         """
-        (ver, probs, planes, to_move, winner) = self.v2_struct.unpack(content)
+        ver, probs, planes, to_move, score = self.v2_struct.unpack(content)
         # Unpack planes.
         planes = np.unpackbits(np.frombuffer(planes, dtype=np.uint8))
-        assert len(planes) == 19*19*16
+        assert len(planes) == board_size * board_size * 16
         # Now we add the two final planes, being the 'color to move' planes.
         stm = to_move
         assert stm == 0 or stm == 1
         # Flattern all planes to a single byte string
         planes = planes.tobytes() + self.flat_planes[stm]
-        assert len(planes) == (18 * 19 * 19), len(planes)
+        assert len(planes) == (18 * board_size * board_size), len(planes)
 
-        winner = float(winner * 2 - 1)
-        assert winner == 1.0 or winner == -1.0, winner
-        winner = struct.pack('f', winner)
+        score = struct.unpack('f', score)[0]
+        assert -(board_size * board_size) <= score <= (board_size * board_size)
+        score = struct.pack('f', score)
 
-        return (planes, probs, winner)
+        return planes, probs, score
 
     def convert_chunkdata_to_v2(self, chunkdata):
         """
@@ -287,15 +302,13 @@ class ChunkParser:
             v2 format records.
         """
         if chunkdata[0:4] == b'\1\0\0\0':
-            #print("V2 chunkdata")
             for i in range(0, len(chunkdata), self.v2_struct.size):
                 if self.sample > 1:
                     # Downsample, using only 1/Nth of the items.
-                    if random.randint(0, self.sample-1) != 0:
+                    if random.randint(0, self.sample - 1) != 0:
                         continue  # Skip this record.
                 yield chunkdata[i:i+self.v2_struct.size]
         else:
-            #print("V1 chunkdata")
             file_chunkdata = chunkdata.splitlines()
 
             result = []
@@ -334,7 +347,6 @@ class ChunkParser:
         """
         sbuff = sb.ShuffleBuffer(self.v2_struct.size, self.shuffle_size)
         while len(self.readers):
-            #for r in mp.connection.wait(self.readers):
             for r in self.readers:
                 try:
                     s = r.recv_bytes()
@@ -370,9 +382,9 @@ class ChunkParser:
             s = list(itertools.islice(gen, self.batch_size))
             if not len(s):
                 return
-            yield ( b''.join([x[0] for x in s]),
-                    b''.join([x[1] for x in s]),
-                    b''.join([x[2] for x in s]) )
+            yield (b''.join([x[0] for x in s]),
+                   b''.join([x[1] for x in s]),
+                   b''.join([x[2] for x in s]))
 
     def parse(self):
         """
@@ -388,22 +400,23 @@ class ChunkParser:
 
 # Tests to check that records can round-trip successfully
 class ChunkParserTest(unittest.TestCase):
-    def generate_fake_pos(self):
+    @staticmethod
+    def generate_fake_pos():
         """
             Generate a random game position.
-            Result is ([[361] * 18], [362], [1])
+            Result is ([[board_size * board_size] * 18], [board_size * board_size + 1], [1])
         """
-        # 1. 18 binary planes of length 361
-        planes = [np.random.randint(2, size=361).tolist()
+        # 1. 18 binary planes of length board_size * board_size
+        planes = [np.random.randint(2, size=(board_size * board_size)).tolist()
                   for plane in range(16)]
         stm = float(np.random.randint(2))
-        planes.append([stm] * 361)
-        planes.append([1. - stm] * 361)
-        # 2. 362 probs
-        probs = np.random.randint(3, size=362).tolist()
-        # 3. And a winner: 1 or -1
-        winner = [ 2 * float(np.random.randint(2)) - 1 ]
-        return (planes, probs, winner)
+        planes.append([stm] * board_size * board_size)
+        planes.append([1. - stm] * board_size * board_size)
+        # 2. board_size * board_size + 1 probs
+        probs = np.random.randint(3, size=(board_size * board_size + 1)).tolist()
+        # 3. And a score: random float in [-board_size^2, board_size^2]
+        score = [np.random.uniform(-(board_size * board_size), board_size * board_size + 1)]
+        return planes, probs, score
 
     def test_parsing(self):
         """
@@ -413,9 +426,9 @@ class ChunkParserTest(unittest.TestCase):
             through the parsing pipeline to final tensors,
             checking that what we get out is what we put in.
         """
-        batch_size=256
+        batch_size = 256
         # First, build a random game position.
-        planes, probs, winner = self.generate_fake_pos()
+        planes, probs, score = self.generate_fake_pos()
 
         # Convert that to a v1 text record.
         items = []
@@ -429,8 +442,8 @@ class ChunkParserTest(unittest.TestCase):
         items.append(str(int(planes[17][0])) + "\n")
         # then probabilities
         items.append(' '.join([str(x) for x in probs]) + "\n")
-        # and finally if the side to move is a winner
-        items.append(str(int(winner[0])) + "\n")
+        # and finally the side to move score
+        items.append(str(score[0]) + "\n")
 
         # Convert to a chunkdata byte string.
         chunkdata = ''.join(items).encode('ascii')
@@ -445,12 +458,12 @@ class ChunkParserTest(unittest.TestCase):
         data = next(batchgen)
 
         # Convert batch to python lists.
-        batch = ( np.reshape(np.frombuffer(data[0], dtype=np.uint8),
-                             (batch_size, 18, 19*19)).tolist(),
-                  np.reshape(np.frombuffer(data[1], dtype=np.float32),
-                             (batch_size, 19*19+1)).tolist(),
-                  np.reshape(np.frombuffer(data[2], dtype=np.float32),
-                             (batch_size, 1)).tolist() )
+        batch = (np.reshape(np.frombuffer(data[0], dtype=np.uint8),
+                             (batch_size, 18, board_size * board_size)).tolist(),
+                 np.reshape(np.frombuffer(data[1], dtype=np.float32),
+                             (batch_size, board_size * board_size + 1)).tolist(),
+                 np.reshape(np.frombuffer(data[2], dtype=np.float32),
+                             (batch_size, 1)).tolist())
 
         # Check that every record in the batch is a some valid symmetry
         # of the original data.
@@ -463,22 +476,22 @@ class ChunkParserTest(unittest.TestCase):
                 # Apply the symmetry to the original
                 sym_planes = [
                     [plane[remap_vertex(vertex, symmetry)]
-                        for vertex in range(361)]
+                        for vertex in range(board_size * board_size)]
                             for plane in planes]
                 sym_probs = [
                     probs[remap_vertex(vertex, symmetry)]
-                        for vertex in range(361)] + [probs[361]]
+                        for vertex in range(board_size * board_size)] + [probs[board_size * board_size]]
 
                 if symmetry == 0:
                     assert sym_planes == planes
                     assert sym_probs == probs
 
                 # Check that what we got out matches what we put in.
-                if data == (sym_planes, sym_probs, winner):
+                if data == (sym_planes, sym_probs, score):
                     result = True
                     break
             # Check that there is at least one matching symmetry.
-            assert result == True
+            assert result is True
         print("Test parse passes")
         # drain parser
         for _ in batchgen:
