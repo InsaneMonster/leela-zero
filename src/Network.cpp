@@ -837,7 +837,27 @@ Network::Netresult Network::get_output_internal(
         innerproduct<VALUE_LAYER, 1, false>(score_data, m_ip2_val_w, m_ip2_val_b);
 
     // Rescale the network output to prevent too high numbers but preserve its linearity
-    const auto score = RESCALE_FACTOR * score_out[0];
+    auto score = RESCALE_FACTOR * score_out[0];
+
+	// The network output is trained to be between -1 and 1, clamp it if something is a bit wrong just to speed up things
+	if (score <= -1.0f)
+		score = -1.0f;
+
+	if (score >= 1.0f)
+		score = 1.0f;
+
+	// Then revert it back to the respective score
+	const auto old_max = 1.0f;
+	const auto old_min = -1.0f;
+
+	const auto old_range = old_max - old_min;
+
+	const auto new_max = BOARD_SIZE * BOARD_SIZE + KOMI;
+	const auto new_min = -(BOARD_SIZE * BOARD_SIZE) - KOMI;
+
+	const auto new_range = new_max - new_min;
+
+	score = (score - old_min) * new_range / old_range + new_min;
 
     Netresult result;
 
