@@ -25,12 +25,20 @@
 
 using VersionTuple = std::tuple<int, int, int>;
 
+const auto release_name = "./leelaz";
+const auto debug_name = "./leela-zero";
+
+
 class Engine {
 public:
-    Engine(const QString& network,
-           const QString& options,
-           const QStringList& commands = QStringList("time_settings 0 1 0"),
-           const QString& binary = QString("./leelaz")) :
+	Engine(const QString& network,
+		const QString& options,
+		const QStringList& commands = QStringList("time_settings 0 1 0"),
+#ifdef NDEBUG
+		const QString& binary = QString(debug_name)) :
+#else
+		const QString& binary = QString(release_name)) :
+#endif
         m_binary(binary), m_options(options),
         m_network(network), m_commands(commands) {
 #ifdef WIN32
