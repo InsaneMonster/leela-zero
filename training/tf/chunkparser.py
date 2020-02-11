@@ -37,6 +37,7 @@ DATA_ITEM_LINES = 16 + 1 + 1 + 1
 
 board_size: int = 9
 vertex_number: int = board_size * board_size
+komi: float = 7.5
 
 
 def remap_vertex(vertex, symmetry):
@@ -147,8 +148,8 @@ class ChunkParser:
             # 19*19+1 = 362 float32 probabilities => *4 => 1448 bytes
             # 19*19*16 = 5776 packed bit planes => /8 => 722 bytes
             # 1 uint8 side_to_move => *1 => 1 byte
-            # 1 float32 score => *4 => 4 bytes
-            self.v2_struct = struct.Struct('4s1448s722sB4s')
+            # 1 float32 score
+            self.v2_struct = struct.Struct('4s1448s722sBf')
             # Struct used to return data from child workers.
             # 1 float32 score => *4 => 4 bytes
             # 19*19+1 = 362 float32 probs => *4 => 1448 bytes
@@ -162,8 +163,8 @@ class ChunkParser:
             # 9*9+1 = 82 float32 probabilities => *4 => 328 bytes
             # 9*9*16 = 1296 packed bit planes => /4 => 162 bytes
             # 1 uint8 side_to_move => *1  => 1 byte
-            # 1 float32 score => *4 => 4 bytes
-            self.v2_struct = struct.Struct('4s328s162sB4s')
+            # 1 float32 score
+            self.v2_struct = struct.Struct('4s328s162sBf')
             # Struct used to return data from child workers.
             # 1 float32 score => *4 => 4 bytes
             # 9*9+1 = 82 float32 probs => *4 => 328 bytes
@@ -191,7 +192,7 @@ class ChunkParser:
             chars_number = 20 if board_size == 9 else 90
             hex_string = text_item[plane][0:chars_number]
             try:
-                array = np.frombuffer(bytearray.fromhex(hex_string), dtype=np.uint8)
+                array = np.unpackbits(np.frombuffer(bytearray.fromhex(hex_string), dtype=np.uint8))
             except:
                 return False, None
             # Remaining bit that didn't fit. Encoded LSB so
@@ -229,11 +230,11 @@ class ChunkParser:
 
         # Load the final score
         score = float(text_item[18])
-        if not(-(board_size * board_size) <= score <= (board_size * board_size)):
+        if not((-(board_size * board_size) - komi) <= score <= ((board_size * board_size) + komi)):
             return False, None
 
         version = struct.pack('i', 1)
-        score = struct.pack('f', score)
+        # score = struct.pack('f', score)
 
         return True, self.v2_struct.pack(version, probs, planes, stm, score)
 
@@ -290,8 +291,8 @@ class ChunkParser:
         planes = planes.tobytes() + self.flat_planes[stm]
         assert len(planes) == (18 * board_size * board_size), len(planes)
 
-        score = struct.unpack('f', score)[0]
-        assert -(board_size * board_size) <= score <= (board_size * board_size)
+        score = float(score)
+        assert (-(board_size * board_size) - komi) <= score <= ((board_size * board_size) + komi)
         score = struct.pack('f', score)
 
         return planes, probs, score

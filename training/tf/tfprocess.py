@@ -28,6 +28,7 @@ from mixprec import float32_variable_storage_getter, LossScalingOptimizer
 board_size: int = 9
 vertex_number: int = board_size * board_size
 rescale_factor: float = 1
+normalization_coefficient: float = 0.5
 
 def weight_variable(name, shape, dtype):
     """Xavier initialization"""
@@ -216,7 +217,7 @@ class TFProcess:
             for i in range(gpus_num):
                 with tf.device("/gpu:%d" % i):
                     with tf.name_scope("tower_%d" % i):
-                        loss, policy_loss, mse_loss, reg_term, y_conv, pred, label = self.tower_loss(
+                        loss, policy_loss, mse_loss, reg_term, y_conv = self.tower_loss(
                             self.sx[i], self.sy_[i], self.sz_[i])
 
                         # Reset batchnorm key to 0.
@@ -240,9 +241,6 @@ class TFProcess:
         self.reg_term = tf.reduce_mean(tower_reg_term)
         self.y_conv = tf.concat(tower_y_conv, axis=0)
         self.mean_grads = self.average_gradients(tower_grads)
-
-        self.pred = pred
-        self.label = label
 
         # Do swa after we contruct the net
         if self.swa_enabled is True:
@@ -360,9 +358,12 @@ class TFProcess:
 
         # For training from a (smaller) dataset of strong players, you will
         # want to reduce the factor in front of self.mse_loss here.
-        loss = 1.0 * policy_loss + 1.0 * mse_loss + reg_term
+        # Normalization coefficient is used to reduce the impact of mse (which is higher due to the higher upper bound
+        # of score instead of win-rate
+        loss = 1.0 * policy_loss + 1.0 * normalization_coefficient * mse_loss + reg_term
 
-        return loss, policy_loss, mse_loss, reg_term, y_conv, z_conv, z_
+        # Return the normalization coefficient along with mse-loss to actually log the right values
+        return loss, policy_loss, normalization_coefficient * mse_loss, reg_term, y_conv
 
     def assign(self, var, values):
         try:
@@ -420,15 +421,19 @@ class TFProcess:
     def measure_loss(self, batch, training=False):
         # Measure loss over one batch. If training is true, also
         # accumulate the gradient and increment the global step.
-        ops = [self.policy_loss, self.mse_loss, self.reg_term, self.accuracy, self.pred, self.label]
+        ops = [self.policy_loss, self.mse_loss, self.reg_term, self.accuracy]
         if training:
-            ops += [self.grad_op, self.step_op],
+            ops += [self.grad_op, self.step_op]
         r = self.session.run(ops, feed_dict={self.training: training,
                              self.planes: batch[0],
                              self.probs: batch[1],
                              self.score: batch[2]})
-        # Google's paper scales mse by 1/4 to a [0,1] range, so we do the same here
-        return {'policy': r[0], 'mse': r[1]/4., 'reg': r[2],
+
+        print("planes: " + str(np.unpackbits(batch[0])))
+        print("probs:" + str(np.unpackbits(batch[2])))
+        print("score: " + str(np.unpackbits(batch[2])))
+
+        return {'policy': r[0], 'mse': r[1], 'reg': r[2],
                 'accuracy': r[3], 'total': r[0]+r[1]+r[2]}
 
     def process(self, train_data, test_data):
