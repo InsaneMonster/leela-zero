@@ -22,13 +22,14 @@ import os
 import tensorflow as tf
 import time
 import unittest
+import struct
 
 from mixprec import float32_variable_storage_getter, LossScalingOptimizer
 
 board_size: int = 9
 vertex_number: int = board_size * board_size
 rescale_factor: float = 1
-normalization_coefficient: float = 0.5
+normalization_coefficient: float = 15
 
 def weight_variable(name, shape, dtype):
     """Xavier initialization"""
@@ -185,6 +186,8 @@ class TFProcess:
         probs = tf.reshape(probs, (batch_size, board_size*board_size + 1))
         score = tf.reshape(score, (batch_size, 1))
 
+        self._reshaped_score = score
+
         if gpus_num is None:
             gpus_num = self.gpus_num
         self.init_net(planes, probs, score, gpus_num)
@@ -200,7 +203,7 @@ class TFProcess:
         # You need to change the learning rate here if you are training
         # from a self-play training set, for example start with 0.005 instead.
         opt = tf.train.MomentumOptimizer(
-            learning_rate=0.05, momentum=0.9, use_nesterov=True)
+            learning_rate=0.005, momentum=0.9, use_nesterov=True)
 
         opt = LossScalingOptimizer(opt, scale=self.loss_scale)
 
@@ -348,8 +351,7 @@ class TFProcess:
         policy_loss = tf.reduce_mean(cross_entropy)
 
         # Loss on value head
-        mse_loss = \
-            tf.reduce_mean(tf.squared_difference(z_, z_conv))
+        mse_loss = normalization_coefficient * tf.reduce_mean(tf.squared_difference(z_, z_conv))
 
         # Regularizer
         reg_variables = tf.get_collection(tf.GraphKeys.WEIGHTS)
@@ -360,10 +362,10 @@ class TFProcess:
         # want to reduce the factor in front of self.mse_loss here.
         # Normalization coefficient is used to reduce the impact of mse (which is higher due to the higher upper bound
         # of score instead of win-rate
-        loss = 1.0 * policy_loss + 1.0 * normalization_coefficient * mse_loss + reg_term
+        loss = 1.0 * policy_loss + 1.0 * mse_loss + reg_term
 
         # Return the normalization coefficient along with mse-loss to actually log the right values
-        return loss, policy_loss, normalization_coefficient * mse_loss, reg_term, y_conv
+        return loss, policy_loss, mse_loss, reg_term, y_conv
 
     def assign(self, var, values):
         try:
@@ -429,11 +431,14 @@ class TFProcess:
                              self.probs: batch[1],
                              self.score: batch[2]})
 
-        print("planes: " + str(np.unpackbits(batch[0])))
-        print("probs:" + str(np.unpackbits(batch[2])))
-        print("score: " + str(np.unpackbits(batch[2])))
+        # Useful for debug
+        score = self.session.run(self._reshaped_score, feed_dict={self.score: batch[2]})
+        value = self.session.run(self._value_head, feed_dict={self.training: training,
+                             self.planes: batch[0],
+                             self.probs: batch[1],
+                             self.score: batch[2]})
 
-        return {'policy': r[0], 'mse': r[1], 'reg': r[2],
+        return {'policy': r[0], 'mse': r[1]/4, 'reg': r[2],
                 'accuracy': r[3], 'total': r[0]+r[1]+r[2]}
 
     def process(self, train_data, test_data):
@@ -657,6 +662,8 @@ class TFProcess:
         self.add_weights(W_fc3)
         self.add_weights(b_fc3)
         h_fc3 = rescale_factor * tf.add(tf.matmul(h_fc2, W_fc3), b_fc3)
+
+        self._value_head = h_fc3
 
         return h_fc1, h_fc3
 

@@ -291,8 +291,18 @@ class ChunkParser:
         planes = planes.tobytes() + self.flat_planes[stm]
         assert len(planes) == (18 * board_size * board_size), len(planes)
 
+        # Load and remap the score
         score = float(score)
         assert (-(board_size * board_size) - komi) <= score <= ((board_size * board_size) + komi)
+
+        old_max = (board_size * board_size) + komi
+        old_min = -(board_size * board_size) - komi
+        old_range = old_max - old_min
+        new_max = 1
+        new_min = -1
+        new_range = new_max - new_min
+        score = (((score - old_min) * new_range) / old_range) + new_min
+
         score = struct.pack('f', score)
 
         return planes, probs, score
