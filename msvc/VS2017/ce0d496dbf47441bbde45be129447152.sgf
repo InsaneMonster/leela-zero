@@ -1,6 +1,0 @@
-(;GM[1]FF[4]RU[Chinese]DT[2020-01-28]SZ[9]KM[7.5]PB[Leela Zero 0.17 046be4a5]PW[Leela Zero 0.17 046be4a5]RE[W+7.5]
-C[Leela Zero options: -p 0 -v 1601 -r 5 -m 30 -t 6 --batchsize 5 -d -n --noponder -s 7251298196288194547 -g -q -w networks/046be4a54dd3581cc93134075a40d36a6ce22656fbd66ba6090d03df4d7c3ea0.gz Starting GTP commands: time_settings 0 1 0]
-;B[gg];W[bh];B[be];W[hi];B[cc];W[ae];B[dd];W[ad];B[gi];W[cb]
-;B[gd];W[ii];B[ie];W[ag];B[ic];W[hc];B[bb];W[aa];B[gh];W[ga]
-;B[tt];W[ge];B[bi];W[gb];B[ee];W[fa];B[ah];W[eh];B[hf];W[gf]
-;B[ia];W[dg];B[tt];W[tt])

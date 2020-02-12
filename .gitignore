@@ -16,3 +16,5 @@ build/
 /best-network
 /msvc/VS2017/networks
 /initial_9x9.txt
+/training/LeelaScore
+/training

@@ -28,8 +28,8 @@ from mixprec import float32_variable_storage_getter, LossScalingOptimizer
 
 board_size: int = 9
 vertex_number: int = board_size * board_size
-rescale_factor: float = 1
-normalization_coefficient: float = 15
+rescale_factor: float = 0.1
+normalization_coefficient: float = 8.0
 
 def weight_variable(name, shape, dtype):
     """Xavier initialization"""
@@ -438,7 +438,7 @@ class TFProcess:
                              self.probs: batch[1],
                              self.score: batch[2]})
 
-        return {'policy': r[0], 'mse': r[1]/4, 'reg': r[2],
+        return {'policy': r[0], 'mse': r[1], 'reg': r[2],
                 'accuracy': r[3], 'total': r[0]+r[1]+r[2]}
 
     def process(self, train_data, test_data):
