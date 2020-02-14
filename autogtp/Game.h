@@ -26,7 +26,7 @@
 using VersionTuple = std::tuple<int, int, int>;
 
 const auto release_name = "./leelaz";
-const auto debug_name = "./leela-zero";
+const auto debug_name = "./leelaz";
 
 
 class Engine {
