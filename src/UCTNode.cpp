@@ -263,22 +263,23 @@ float UCTNode::get_eval_lcb(int color) const {
     return mean - z * stddev;
 }
 
-float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
-    auto visits = get_visits() + virtual_loss;
-    assert(visits > 0);
-    auto blackeval = get_blackevals();
-    if (tomove == FastBoard::WHITE) {
-        blackeval += static_cast<double>(virtual_loss);
-    }
-    auto eval = static_cast<float>(blackeval / double(visits));
-    // If white set eval to the opposite of its value
-    if (tomove == FastBoard::WHITE) {
-        eval = -eval;
-    }
-    return eval;
+float UCTNode::get_raw_eval(int tomove, int virtual_loss) const
+{
+	// Define a coefficient dependent of the KOMI and the BOARD-SIZE
+	auto const virtual_loss_coefficient = BOARD_SIZE * BOARD_SIZE + KOMI;
+	// Compute the visits taking into account the virtual loss
+	auto const visits = get_visits() + virtual_loss;
+	assert(visits > 0);
+	// Compute the true eval (it is inverted if white is to move since the stored evals are always from black point of view)
+	auto eval = tomove == FastBoard::WHITE ? -get_blackevals() : get_blackevals();
+	// Reduce the eval by the virtual loss coefficient multiplied by the virtual loss
+	eval -= static_cast<float>(virtual_loss) * virtual_loss_coefficient;
+	// Return the true eval with applied virtual loss, if any
+	return static_cast<float>(eval / double(visits));
 }
 
-float UCTNode::get_eval(int tomove) const {
+float UCTNode::get_eval(int tomove) const
+{
     // Due to the use of atomic updates and virtual losses, it is
     // possible for the visit count to change underneath us. Make sure
     // to return a consistent result to the caller by caching the values.
