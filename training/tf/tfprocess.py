@@ -29,7 +29,7 @@ from mixprec import float32_variable_storage_getter, LossScalingOptimizer
 board_size: int = 9
 vertex_number: int = board_size * board_size
 rescale_factor: float = 0.1
-normalization_coefficient: float = 8.0
+normalization_coefficient: float = 20.0
 
 def weight_variable(name, shape, dtype):
     """Xavier initialization"""
@@ -151,7 +151,9 @@ class TFProcess:
         self.swa_recalc_bn = True
 
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
+
         config = tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
         self.session = tf.Session(config=config)
 
         self.training = tf.placeholder(tf.bool)
@@ -502,6 +504,7 @@ class TFProcess:
                 save_path = self.saver.save(self.session, path,
                                             global_step=steps)
                 print("Model saved in file: {}".format(save_path))
+                return
 
     def save_leelaz_weights(self, filename):
         with open(filename, "w") as file:

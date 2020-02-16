@@ -139,6 +139,10 @@ def main():
         print("Must supply number of blocks and filters")
         return
 
+    # Define the CUDA devices in which to run the experiment
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
     training = get_chunks(train_data_prefix)
     if not args.test:
         # Generate test by taking 10% of the training chunks.
