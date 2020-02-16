@@ -25,11 +25,10 @@ import gzip
 import multiprocessing as mp
 import os
 import random
-import shufflebuffer as sb
 import sys
-import tensorflow as tf
 import time
 import unittest
+import logging
 
 # Sane values are from 4096 to 64 or so.
 # You need to adjust the learning rate if you change this. Should be
@@ -142,7 +141,30 @@ def main():
     # Define the CUDA devices in which to run the experiment
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
+    # Define the logger
+    logger: logging.Logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    # Setup of the logger for the current experiment
+    # Reset logger handlers for current experiment
+    logger.handlers = []
+    # Generate a console and a file handler for the logger
+    console_handler: logging.StreamHandler = logging.StreamHandler(sys.stdout)
+    logdir = os.path.abspath(os.getcwd()) + "/leelaverbose"
+    if not os.path.isdir(logdir):
+        try:
+            os.makedirs(logdir)
+        except FileExistsError:
+            pass
+    file_handler: logging.FileHandler = logging.FileHandler(logdir + "/info.log", "w+")
+    # Set handlers properties
+    console_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.DEBUG)
+    formatter: logging.Formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    # Add the handlers to the logger
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
     training = get_chunks(train_data_prefix)
     if not args.test:
         # Generate test by taking 10% of the training chunks.
@@ -177,7 +199,7 @@ def main():
 
     if restore_prefix:
         tfprocess.restore(restore_prefix)
-    tfprocess.process(train_parser, test_parser)
+    tfprocess.process(train_parser, test_parser, logger)
 
 if __name__ == "__main__":
     mp.set_start_method('spawn')

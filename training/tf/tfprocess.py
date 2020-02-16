@@ -22,7 +22,7 @@ import os
 import tensorflow as tf
 import time
 import unittest
-import struct
+import logging
 
 from mixprec import float32_variable_storage_getter, LossScalingOptimizer
 
@@ -443,7 +443,7 @@ class TFProcess:
         return {'policy': r[0], 'mse': r[1], 'reg': r[2],
                 'accuracy': r[3], 'total': r[0]+r[1]+r[2]}
 
-    def process(self, train_data, test_data):
+    def process(self, train_data, test_data, logger: logging.Logger):
         info_steps = 1000
         stats = Stats()
         timer = Timer()
@@ -462,7 +462,7 @@ class TFProcess:
 
             if steps % info_steps == 0:
                 speed = info_steps * self.batch_size / timer.elapsed()
-                print("step {}, policy={:g} mse={:g} reg={:g} total={:g} ({:g} pos/s)".format(
+                logger.info("step {}, policy={:g} mse={:g} reg={:g} total={:g} ({:g} pos/s)".format(
                     steps, stats.mean('policy'), stats.mean('mse'), stats.mean('reg'),
                     stats.mean('total'), speed))
                 summaries = stats.summaries({'Policy Loss': 'policy',
@@ -482,7 +482,7 @@ class TFProcess:
                                                   'MSE Loss': 'mse',
                                                   'Accuracy': 'accuracy'})
                 self.test_writer.add_summary(tf.Summary(value=summaries), steps)
-                print("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
+                logger.info("step {}, policy={:g} training accuracy={:g}%, mse={:g}".\
                     format(steps, test_stats.mean('policy'),
                         test_stats.mean('accuracy')*100.0,
                         test_stats.mean('mse')))
