@@ -441,7 +441,7 @@ Order Management::getWorkInternal(bool tuning) {
         QString gzipHash = ob.value("hash_gzip_hash").toString();
         fetchNetwork(net, gzipHash);
         parameters["network"] = net;
-
+		parameters["selfplay_id"] = ob.value("selfplay_id").toString();
         o.type(Order::Production);
         o.parameters(parameters);
         if (m_delNetworks &&
@@ -840,6 +840,9 @@ void Management::uploadData(const QMap<QString,QString> &r, const QMap<QString,Q
     archiveFiles(r["file"]);
     gzipFile(r["file"] + ".sgf");
     QStringList prog_cmdline;
+	// Add self-play id if there is one
+	if (l.contains("selfplay_id"))
+		prog_cmdline.append("-F selfplay_id=" + l["selfplay_id"]);
     prog_cmdline.append("-F networkhash=" + l["network"]);
     prog_cmdline.append("-F clientversion=" + QString::number(m_version));
     prog_cmdline.append("-F options_hash="+ l["optHash"]);
