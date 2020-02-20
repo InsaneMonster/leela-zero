@@ -34,56 +34,62 @@
 #include <string>
 #include <vector>
 
-#include "FastState.h"
 #include "FullBoard.h"
 #include "KoState.h"
 #include "TimeControl.h"
 
 class Network;
 
-class GameState : public KoState {
-public:
-    explicit GameState() = default;
-    explicit GameState(const KoState* rhs) {
-        // Copy in fields from base class.
-        *(static_cast<KoState*>(this)) = *rhs;
-        anchor_game_history();
-    }
-    void init_game(int size, float komi);
-    void reset_game();
-    bool set_fixed_handicap(int stones);
-    int set_fixed_handicap_2(int stones);
-    void place_free_handicap(int stones, Network & network);
-    void anchor_game_history();
+class GameState : public KoState
+{
+	public:
+		
+	    explicit GameState() = default;
+	    explicit GameState(const KoState* rhs)
+		{
+	        // Copy in fields from base class.
+	        *(static_cast<KoState*>(this)) = *rhs;
+	        anchor_game_history();
+	    }
+		
+	    void init_game(int size, float komi);
+	    void reset_game();
+		
+	    bool set_fixed_handicap(int handicap);
+	    int set_fixed_handicap_2(int handicap);
+	    void place_free_handicap(int stones, Network & network);
+		
+	    void anchor_game_history();
+	    void rewind(); /* undo infinite */
+	    bool undo_move();
+	    bool forward_move();
+		
+	    const FullBoard& get_past_board(int moves_ago) const;
+	    const std::vector<std::shared_ptr<const KoState>>& get_game_history() const;
 
-    void rewind(); /* undo infinite */
-    bool undo_move();
-    bool forward_move();
-    const FullBoard& get_past_board(int moves_ago) const;
-    const std::vector<std::shared_ptr<const KoState>>& get_game_history() const;
+	    void play_move(int color, int vertex);
+	    void play_move(int vertex);
+	    bool play_textmove(std::string color, const std::string& vertex);
 
-    void play_move(int color, int vertex);
-    void play_move(int vertex);
-    bool play_textmove(std::string color, const std::string& vertex);
+	    void start_clock(int color);
+	    void stop_clock(int color);
+	    const TimeControl& get_timecontrol() const;
+	    void set_timecontrol(const TimeControl& timecontrol);
+	    void set_timecontrol(int maintime, int byotime, int byostones, int byoperiods);
+	    void adjust_time(int color, int time, int stones);
 
-    void start_clock(int color);
-    void stop_clock(int color);
-    const TimeControl& get_timecontrol() const;
-    void set_timecontrol(const TimeControl& timecontrol);
-    void set_timecontrol(int maintime, int byotime, int byostones,
-                         int byoperiods);
-    void adjust_time(int color, int time, int stones);
+	    void display_state();
+	    bool has_resigned() const;
+	    int who_resigned() const;
 
-    void display_state();
-    bool has_resigned() const;
-    int who_resigned() const;
+	private:
+		
+	    bool valid_handicap(int handicap) const;
 
-private:
-    bool valid_handicap(int stones);
-
-    std::vector<std::shared_ptr<const KoState>> game_history;
-    TimeControl m_timecontrol;
-    int m_resigned{FastBoard::EMPTY};
+	    std::vector<std::shared_ptr<const KoState>> game_history;
+	    TimeControl m_timecontrol;
+	    int m_resigned{FastBoard::EMPTY};
+	
 };
 
 #endif
