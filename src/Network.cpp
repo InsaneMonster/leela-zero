@@ -672,10 +672,12 @@ void Network::compare_net_outputs(const Netresult& data,
 
     error = std::sqrt(error);
 
-    if (error > max_error || std::isnan(error)) {
-        printf("Error in OpenCL calculation: Update your device's OpenCL drivers "
-               "or reduce the amount of games played simultaneously.\n");
-        throw std::runtime_error("OpenCL self-check mismatch.");
+    if (error > max_error || std::isnan(error)) 
+	{
+        printf("Error in OpenCL calculation: Update your device's OpenCL drivers or reduce the amount of games played simultaneously.\n");
+		printf("Error is %f while max allowed is %f", error, max_error);
+    	
+    	throw std::runtime_error("OpenCL self-check mismatch.");
     }
 }
 #endif
