@@ -27,8 +27,6 @@
     work.
 */
 
-#include "config.h"
-
 #include <array>
 #include <cassert>
 
@@ -39,167 +37,120 @@
 
 using namespace Utils;
 
-int FullBoard::remove_string(int i) {
-    int pos = i;
-    int removed = 0;
-    int color = m_state[i];
+int FullBoard::remove_vertices_string(int const vertex)
+{
+    auto position = vertex;
+    auto removed = 0;
+    auto const color = m_state[vertex];
 
-    do {
-        m_hash    ^= Zobrist::zobrist[m_state[pos]][pos];
-        m_ko_hash ^= Zobrist::zobrist[m_state[pos]][pos];
+	// Cycle through all the stones position in a string and remove them all until the given vertex is reached
+    do 
+	{
+        m_hash ^= Zobrist::zobrist_states[m_state[position]][position];
+        m_hash_ko ^= Zobrist::zobrist_states[m_state[position]][position];
 
-        m_state[pos] = EMPTY;
-        m_parent[pos] = NUM_VERTICES;
+        m_state[position] = EMPTY;
+        m_parent[position] = VERTICES_NUMBER;
 
-        remove_neighbour(pos, color);
+        remove_neighbor(position, color);
 
-        m_empty_idx[pos]      = m_empty_cnt;
-        m_empty[m_empty_cnt]  = pos;
-        m_empty_cnt++;
+        m_empty_intersections_indices[position] = m_empty_count;
+        m_empty_intersections[m_empty_count] = position;
+        m_empty_count++;
 
-        m_hash    ^= Zobrist::zobrist[m_state[pos]][pos];
-        m_ko_hash ^= Zobrist::zobrist[m_state[pos]][pos];
+        m_hash ^= Zobrist::zobrist_states[m_state[position]][position];
+        m_hash_ko ^= Zobrist::zobrist_states[m_state[position]][position];
 
         removed++;
-        pos = m_next[pos];
-    } while (pos != i);
+        position = m_next[position];
+    	
+    } while (position != vertex);
 
     return removed;
 }
 
-std::uint64_t FullBoard::calc_ko_hash() const {
-    auto res = Zobrist::zobrist_empty;
-
-    for (auto i = 0; i < m_numvertices; i++) {
-        if (m_state[i] != INVAL) {
-            res ^= Zobrist::zobrist[m_state[i]][i];
-        }
-    }
-
-    /* Tromp-Taylor has positional superko */
-    return res;
+void FullBoard::set_to_move(int const to_move)
+{
+    if (m_color_to_move != to_move)
+        m_hash ^= Zobrist::ZOBRIST_BLACK_TO_MOVE;
+	
+    FastBoard::set_to_move(to_move);
 }
 
-template<class Function>
-std::uint64_t FullBoard::calc_hash(int komove, Function transform) const {
-    auto res = Zobrist::zobrist_empty;
+int FullBoard::update_board(const int color, const int vertex)
+{
+    assert(vertex != FastBoard::PASS);
+    assert(m_state[vertex] == EMPTY);
 
-    for (auto i = 0; i < m_numvertices; i++) {
-        if (m_state[i] != INVAL) {
-            res ^= Zobrist::zobrist[m_state[i]][transform(i)];
-        }
-    }
+    m_hash ^= Zobrist::zobrist_states[m_state[vertex]][vertex];
+    m_hash_ko ^= Zobrist::zobrist_states[m_state[vertex]][vertex];
 
-    /* prisoner hashing is rule set dependent */
-    res ^= Zobrist::zobrist_pris[0][m_prisoners[0]];
-    res ^= Zobrist::zobrist_pris[1][m_prisoners[1]];
+    m_state[vertex] = vertex_t(color);
+    m_next[vertex] = vertex;
+    m_parent[vertex] = vertex;
+    m_liberties[vertex] = count_liberties(vertex);
+    m_stones[vertex] = 1;
 
-    if (m_tomove == BLACK) {
-        res ^= Zobrist::zobrist_blacktomove;
-    }
+    m_hash ^= Zobrist::zobrist_states[m_state[vertex]][vertex];
+    m_hash_ko ^= Zobrist::zobrist_states[m_state[vertex]][vertex];
 
-    res ^= Zobrist::zobrist_ko[transform(komove)];
+    // Update neighbor liberties (they all lose 1)
+    add_neighbor(color, vertex);
 
-    return res;
-}
-
-std::uint64_t FullBoard::calc_hash(int komove) const {
-    return calc_hash(komove, [](const auto vertex) { return vertex; });
-}
-
-std::uint64_t FullBoard::calc_symmetry_hash(int komove, int symmetry) const {
-    return calc_hash(komove, [this, symmetry](const auto vertex) {
-        if (vertex == NO_VERTEX) {
-            return NO_VERTEX;
-        } else {
-            const auto newvtx = Network::get_symmetry(get_xy(vertex), symmetry, m_boardsize);
-            return get_vertex(newvtx.first, newvtx.second);
-        }
-    });
-}
-
-std::uint64_t FullBoard::get_hash() const {
-    return m_hash;
-}
-
-std::uint64_t FullBoard::get_ko_hash() const {
-    return m_ko_hash;
-}
-
-void FullBoard::set_to_move(int tomove) {
-    if (m_tomove != tomove) {
-        m_hash ^= Zobrist::zobrist_blacktomove;
-    }
-    FastBoard::set_to_move(tomove);
-}
-
-int FullBoard::update_board(const int color, const int i) {
-    assert(i != FastBoard::PASS);
-    assert(m_state[i] == EMPTY);
-
-    m_hash ^= Zobrist::zobrist[m_state[i]][i];
-    m_ko_hash ^= Zobrist::zobrist[m_state[i]][i];
-
-    m_state[i] = vertex_t(color);
-    m_next[i] = i;
-    m_parent[i] = i;
-    m_libs[i] = count_pliberties(i);
-    m_stones[i] = 1;
-
-    m_hash ^= Zobrist::zobrist[m_state[i]][i];
-    m_ko_hash ^= Zobrist::zobrist[m_state[i]][i];
-
-    /* update neighbor liberties (they all lose 1) */
-    add_neighbour(i, color);
-
-    /* did we play into an opponent eye? */
-    auto eyeplay = (m_neighbours[i] & s_eyemask[!color]);
+    // Did we play into an opponent eye?
+    auto const eye_play = (m_neighbors[vertex] & s_eye_mask[!color]);
 
     auto captured_stones = 0;
-    int captured_vtx;
+    auto captured_vtx = 0;
 
-    for (int k = 0; k < 4; k++) {
-        int ai = i + m_dirs[k];
+    for (auto k = 0; k < 4; k++) 
+	{
+        auto const ai = vertex + m_directions[k];
 
-        if (m_state[ai] == !color) {
-            if (m_libs[m_parent[ai]] <= 0) {
-                int this_captured = remove_string(ai);
+        if (m_state[ai] == !color) 
+		{
+            if (m_liberties[m_parent[ai]] <= 0) 
+			{
+                auto const this_captured = remove_vertices_string(ai);
                 captured_vtx = ai;
                 captured_stones += this_captured;
             }
-        } else if (m_state[ai] == color) {
-            int ip = m_parent[i];
-            int aip = m_parent[ai];
+        }
+    	else if (m_state[ai] == color) 
+		{
+            int const ip = m_parent[vertex];
+            int const aip = m_parent[ai];
 
-            if (ip != aip) {
-                if (m_stones[ip] >= m_stones[aip]) {
+            if (ip != aip) 
+			{
+                if (m_stones[ip] >= m_stones[aip])
                     merge_strings(ip, aip);
-                } else {
+                else
                     merge_strings(aip, ip);
-                }
             }
         }
     }
 
-    m_hash ^= Zobrist::zobrist_pris[color][m_prisoners[color]];
+    m_hash ^= Zobrist::zobrist_prisoners[color][m_prisoners[color]];
     m_prisoners[color] += captured_stones;
-    m_hash ^= Zobrist::zobrist_pris[color][m_prisoners[color]];
+    m_hash ^= Zobrist::zobrist_prisoners[color][m_prisoners[color]];
 
-    /* move last vertex in list to our position */
-    auto lastvertex = m_empty[--m_empty_cnt];
-    m_empty_idx[lastvertex] = m_empty_idx[i];
-    m_empty[m_empty_idx[i]] = lastvertex;
+    // Move last vertex in list to our position
+    auto const last_vertex = m_empty_intersections[--m_empty_count];
+    m_empty_intersections_indices[last_vertex] = m_empty_intersections_indices[vertex];
+    m_empty_intersections[m_empty_intersections_indices[vertex]] = last_vertex;
 
-    /* check whether we still live (i.e. detect suicide) */
-    if (m_libs[m_parent[i]] == 0) {
+    // Check whether we still live (i.e. detect suicide)
+    if (m_liberties[m_parent[vertex]] == 0) 
+	{
         assert(captured_stones == 0);
-        remove_string(i);
+        remove_vertices_string(vertex);
     }
 
-    /* check for possible simple ko */
-    if (captured_stones == 1 && eyeplay) {
-        assert(get_state(captured_vtx) == FastBoard::EMPTY
-                && !is_suicide(captured_vtx, !color));
+    // Check for possible simple ko
+    if (captured_stones == 1 && eye_play) 
+	{
+        assert(get_state(captured_vtx) == FastBoard::EMPTY && !is_suicide(captured_vtx, !color));
         return captured_vtx;
     }
 
@@ -207,15 +158,81 @@ int FullBoard::update_board(const int color, const int i) {
     return NO_VERTEX;
 }
 
-void FullBoard::display_board(int lastmove) {
-    FastBoard::display_board(lastmove);
-
-    myprintf("Hash: %llX Ko-Hash: %llX\n\n", get_hash(), get_ko_hash());
-}
-
-void FullBoard::reset_board(int size) {
+void FullBoard::reset_board(int const size)
+{
     FastBoard::reset_board(size);
 
-    m_hash = calc_hash();
-    m_ko_hash = calc_ko_hash();
+    m_hash = compute_hash();
+    m_hash_ko = compute_hash_ko();
+}
+
+void FullBoard::display_board(int const last_move) const
+{
+	FastBoard::display_board(last_move);
+
+	myprintf("Hash: %llX Ko-Hash: %llX\n\n", get_hash(), get_hash_ko());
+}
+
+std::uint64_t FullBoard::compute_hash(int const ko_move) const
+{
+	return compute_hash(ko_move, [](const auto vertex) { return vertex; });
+}
+
+std::uint64_t FullBoard::compute_hash_symmetry(int const ko_move, int symmetry) const
+{
+	return compute_hash(ko_move, [this, symmetry](const auto vertex)
+	{
+		if (vertex == NO_VERTEX)
+			return NO_VERTEX;
+
+		const auto new_vertex = Network::get_symmetry(get_xy(vertex), symmetry, m_board_size);
+		return get_vertex(new_vertex.first, new_vertex.second);
+	});
+}
+
+std::uint64_t FullBoard::compute_hash_ko() const
+{
+	auto result = Zobrist::ZOBRIST_EMPTY;
+
+	for (auto i = 0; i < m_vertices_number; i++)
+	{
+		if (m_state[i] != INVALID)
+			result ^= Zobrist::zobrist_states[m_state[i]][i];
+	}
+
+	// Tromp-Taylor has positional super-ko
+	return result;
+}
+
+std::uint64_t FullBoard::get_hash() const
+{
+	return m_hash;
+}
+
+std::uint64_t FullBoard::get_hash_ko() const
+{
+	return m_hash_ko;
+}
+
+template<class Function>
+std::uint64_t FullBoard::compute_hash(int ko_move, Function transform) const
+{
+	auto res = Zobrist::ZOBRIST_EMPTY;
+
+	for (auto i = 0; i < m_vertices_number; i++)
+	{
+		if (m_state[i] != INVALID)
+			res ^= Zobrist::zobrist_states[m_state[i]][transform(i)];
+	}
+
+	// Prisoner hashing is rule set dependent
+	res ^= Zobrist::zobrist_prisoners[0][m_prisoners[0]];
+	res ^= Zobrist::zobrist_prisoners[1][m_prisoners[1]];
+
+	if (m_color_to_move == BLACK)
+		res ^= Zobrist::ZOBRIST_BLACK_TO_MOVE;
+
+	res ^= Zobrist::zobrist_ko_move[transform(ko_move)];
+
+	return res;
 }

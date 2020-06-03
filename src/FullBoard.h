@@ -30,32 +30,47 @@
 #ifndef FULLBOARD_H_INCLUDED
 #define FULLBOARD_H_INCLUDED
 
-#include "config.h"
 #include <cstdint>
 #include "FastBoard.h"
 
-class FullBoard : public FastBoard {
+/// Board class extending the base with hashes
+class FullBoard : public FastBoard
+{
 public:
-    int remove_string(int i);
-    int update_board(const int color, const int i);
 
-    std::uint64_t get_hash() const;
-    std::uint64_t get_ko_hash() const;
-    void set_to_move(int tomove);
+	std::uint64_t m_hash;
+	std::uint64_t m_hash_ko;
 
+	/// Remove the stones at the given vertex and in the related string
+    int remove_vertices_string(int vertex);
+
+	/// Set to move like in the base class and also update the hash
+    void set_to_move(int to_move);
+
+	/// Update the board with the given color at the given vertex
+	int update_board(int color, int vertex);
+	/// Reset the current game board as in the base class and also recompute hash and hash-ko
     void reset_board(int size);
-    void display_board(int lastmove = -1);
+	/// Display the current game board as in the base class with added the hash-ko
+    void display_board(int last_move = -1) const;
 
-    std::uint64_t calc_hash(int komove = NO_VERTEX) const;
-    std::uint64_t calc_symmetry_hash(int komove, int symmetry) const;
-    std::uint64_t calc_ko_hash() const;
+	/// Compute the hash of the given ko-move
+    std::uint64_t compute_hash(int ko_move = NO_VERTEX) const;
+	/// Compute the hash of the given ko-move with the given symmetry
+    std::uint64_t compute_hash_symmetry(int ko_move, int symmetry) const;
+	/// Compute the hash-ko for all not-invalid states vertices in the board
+    std::uint64_t compute_hash_ko() const;
 
-    std::uint64_t m_hash;
-    std::uint64_t m_ko_hash;
+	// Getter methods
+	
+	std::uint64_t get_hash() const;
+	std::uint64_t get_hash_ko() const;
 
 private:
+	
     template<class Function>
-    std::uint64_t calc_hash(int komove, Function transform) const;
+	std::uint64_t compute_hash(int ko_move, Function transform) const;
+		
 };
 
 #endif
