@@ -75,7 +75,7 @@ private:
     bool m_invalid{true};
     std::vector<MoveToAvoid> m_moves_to_avoid, m_moves_to_allow;
     int m_interval_centis{0};
-    int m_who{FastBoard::INVAL};
+    int m_who{FastBoard::INVALID};
     size_t m_min_moves{0};
 };
 
@@ -89,7 +89,7 @@ extern size_t cfg_max_memory;
 extern size_t cfg_max_tree_size;
 extern int cfg_max_cache_ratio_percent;
 extern TimeManagement::enabled_t cfg_timemanage;
-extern int cfg_lagbuffer_cs;
+extern int cfg_lag_buffer_cs;
 extern int cfg_resignpct;
 extern int cfg_noise;
 extern int cfg_random_cnt;

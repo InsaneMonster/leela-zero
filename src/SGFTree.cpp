@@ -82,14 +82,14 @@ GameState SGFTree::follow_mainline_state(unsigned int movenum) const {
     GameState result(get_state());
 
     if (m_timecontrol_ptr) {
-        result.set_timecontrol(*m_timecontrol_ptr);
+        result.set_time_control(*m_timecontrol_ptr);
     }
 
     for (unsigned int i = 0; i <= movenum && link != nullptr; i++) {
         // root position has no associated move
         if (i != 0) {
             auto colored_move = link->get_colored_move();
-            if (colored_move.first != FastBoard::INVAL) {
+            if (colored_move.first != FastBoard::INVALID) {
                 if (colored_move.second != FastBoard::PASS
                     && colored_move.second != FastBoard::EMPTY
                     && result.board.get_state(colored_move.second)
@@ -175,7 +175,7 @@ void SGFTree::populate_states() {
         // last ditch effort: if no GM or SZ, assume 19x19 Go here
         auto bsize = 19;
         if (valid_size) {
-            bsize = m_state.board.get_boardsize();
+            bsize = m_state.board.get_board_size();
         }
         if (bsize == BOARD_SIZE) {
             m_state.init_game(bsize, komi);
@@ -230,7 +230,7 @@ void SGFTree::populate_states() {
             } else if (boost::algorithm::starts_with(result, "B+")) {
                 m_winner = FastBoard::BLACK;
             } else {
-                m_winner = FastBoard::INVAL;
+                m_winner = FastBoard::INVALID;
                 // std::cerr << "Could not parse game result: " << result << std::endl;
             }
         }
@@ -282,7 +282,7 @@ void SGFTree::populate_states() {
         // XXX: maybe move this to the recursive call
         // get move for side to move
         const auto colored_move = child_state.get_colored_move();
-        if (colored_move.first != FastBoard::INVAL) {
+        if (colored_move.first != FastBoard::INVALID) {
             child_state.apply_move(colored_move.first, colored_move.second);
         }
 
@@ -299,7 +299,7 @@ void SGFTree::copy_state(const SGFTree& tree) {
 void SGFTree::apply_move(int color, int move) {
     if (move != FastBoard::PASS && move != FastBoard::RESIGN) {
         auto vtx_state = m_state.board.get_state(move);
-        if (vtx_state == !color || vtx_state == FastBoard::INVAL) {
+        if (vtx_state == !color || vtx_state == FastBoard::INVALID) {
             throw std::runtime_error("Illegal move");
         }
         // Playing on an occupied intersection is legal in SGF setup,
@@ -335,13 +335,13 @@ int SGFTree::string_to_vertex(const std::string& movestring) const {
         return FastBoard::PASS;
     }
 
-    if (m_state.board.get_boardsize() <= 19) {
+    if (m_state.board.get_board_size() <= 19) {
         if (movestring == "tt") {
             return FastBoard::PASS;
         }
     }
 
-    int bsize = m_state.board.get_boardsize();
+    int bsize = m_state.board.get_board_size();
     if (bsize == 0) {
         throw std::runtime_error("Node has 0 sized board");
     }
@@ -402,7 +402,7 @@ std::pair<int, int> SGFTree::get_colored_move() const {
                                   string_to_vertex(prop.second));
         }
     }
-    return std::make_pair(FastBoard::INVAL, SGFTree::EOT);
+    return std::make_pair(FastBoard::INVALID, SGFTree::EOT);
 }
 
 FastBoard::vertex_t SGFTree::get_winner() const {
@@ -438,7 +438,7 @@ std::string SGFTree::state_to_string(GameState& pstate, int compcolor) {
     std::string moves;
 
     auto komi = state->get_komi();
-    auto size = state->board.get_boardsize();
+    auto size = state->board.get_board_size();
     time_t now;
     time(&now);
     char timestr[sizeof "2017-10-16"];
@@ -522,7 +522,7 @@ std::string SGFTree::state_to_string(GameState& pstate, int compcolor) {
             header.append("RE[0]");
         }
     } else {
-        if (state->who_resigned() == FastBoard::WHITE) {
+        if (state->get_who_resigned() == FastBoard::WHITE) {
             header.append("RE[B+Resign]");
         } else {
             header.append("RE[W+Resign]");

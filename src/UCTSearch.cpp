@@ -125,7 +125,7 @@ bool UCTSearch::advance_to_new_rootstate() {
     }
 
     auto depth =
-        int(m_rootstate.get_movenum() - m_last_rootstate->get_movenum());
+        int(m_rootstate.get_move_number() - m_last_rootstate->get_move_number());
 
     if (depth < 0) {
         return false;
@@ -174,7 +174,7 @@ bool UCTSearch::advance_to_new_rootstate() {
         m_last_rootstate->play_move(move);
     }
 
-    assert(m_rootstate.get_movenum() == m_last_rootstate->get_movenum());
+    assert(m_rootstate.get_move_number() == m_last_rootstate->get_move_number());
 
     if (m_last_rootstate->board.get_hash() != test->board.get_hash()) {
         // Can happen if user plays multiple moves in a row by same player
@@ -256,7 +256,7 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
         auto move = next->get_move();
 
         currstate.play_move(move);
-        if (move != FastBoard::PASS && currstate.superko()) {
+        if (move != FastBoard::PASS && currstate.super_ko()) {
             next->invalidate();
         } else {
             result = play_simulation(currstate, next);
@@ -473,7 +473,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
 
     // Check whether to randomize the best move proportional
     // to the playout counts, early game only.
-    auto movenum = int(m_rootstate.get_movenum());
+    auto movenum = int(m_rootstate.get_move_number());
     if (movenum < cfg_random_cnt) {
         m_root->randomize_first_proportionally();
     }
@@ -767,8 +767,8 @@ int UCTSearch::think(int color, passflag_t passflag) {
 
     auto time_for_move =
         m_rootstate.get_timecontrol().max_time_for_move(
-            m_rootstate.board.get_boardsize(),
-            color, m_rootstate.get_movenum());
+            m_rootstate.board.get_board_size(),
+            color, m_rootstate.get_move_number());
 
     myprintf("Thinking at most %.1f seconds...\n", time_for_move/100.0f);
 
@@ -795,7 +795,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
         }
 
         Time elapsed;
-        int elapsed_centis = Time::timediff_centis(start, elapsed);
+        int elapsed_centis = Time::time_difference_centiseconds(start, elapsed);
 
         if (cfg_analyze_tags.interval_centis() &&
             elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
@@ -839,7 +839,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
     Training::record(m_network, m_rootstate, *m_root);
 
     Time elapsed;
-    int elapsed_centis = Time::timediff_centis(start, elapsed);
+    int elapsed_centis = Time::time_difference_centiseconds(start, elapsed);
     myprintf("%d visits, %d nodes, %d playouts, %.0f n/s\n\n",
              m_root->get_visits(),
              m_nodes.load(),
@@ -860,7 +860,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
     // Save the explanation.
     m_think_output =
         str(boost::format("move %d, %c => %s\n%s")
-        % m_rootstate.get_movenum()
+        % m_rootstate.get_move_number()
         % (color == FastBoard::BLACK ? 'B' : 'W')
         % m_rootstate.move_to_text(bestmove).c_str()
         % get_analysis(m_root->get_visits()).c_str());
@@ -902,7 +902,7 @@ void UCTSearch::ponder() {
         }
         if (cfg_analyze_tags.interval_centis()) {
             Time elapsed;
-            int elapsed_centis = Time::timediff_centis(start, elapsed);
+            int elapsed_centis = Time::time_difference_centiseconds(start, elapsed);
             if (elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
                 last_output = elapsed_centis;
                 output_analysis(m_rootstate, *m_root);

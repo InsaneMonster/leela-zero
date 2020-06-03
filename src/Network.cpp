@@ -113,7 +113,7 @@ float Network::benchmark_time(int centiseconds) {
                 runcount++;
                 get_output(&state, Ensemble::RANDOM_SYMMETRY, -1, false);
                 const Time end;
-                const auto elapsed = Time::timediff_centis(start, end);
+                const auto elapsed = Time::time_difference_centiseconds(start, end);
                 if (elapsed >= centiseconds) {
                     break;
                 }
@@ -123,7 +123,7 @@ float Network::benchmark_time(int centiseconds) {
     tg.wait_all();
 
     const Time end;
-    const auto elapsed = Time::timediff_centis(start, end);
+    const auto elapsed = Time::time_difference_centiseconds(start, end);
     return 100.0f * runcount.load() / elapsed;
 }
 
@@ -145,7 +145,7 @@ void Network::benchmark(const GameState* const state, const int iterations) {
     tg.wait_all();
 
     const Time end;
-    const auto elapsed = Time::timediff_seconds(start, end);
+    const auto elapsed = Time::time_difference_seconds(start, end);
     myprintf("%5d evaluations in %5.2f seconds -> %d n/s\n",
              runcount.load(), elapsed, int(runcount.load() / elapsed));
 }
@@ -711,7 +711,7 @@ bool Network::probe_cache(const GameState* const state,
     // If we are not generating a self-play game, try to find
     // symmetries if we are in the early opening.
     if (!cfg_noise && !cfg_random_cnt
-        && state->get_movenum()
+        && state->get_move_number()
            < (state->get_timecontrol().opening_moves(BOARD_SIZE) / 2)) {
         for (auto sym = 0; sym < Network::NUM_SYMMETRIES; ++sym) {
             if (sym == Network::IDENTITY_SYMMETRY) {
@@ -737,7 +737,7 @@ Network::Netresult Network::get_output(
     const GameState* const state, const Ensemble ensemble, const int symmetry,
     const bool read_cache, const bool write_cache, const bool force_selfcheck) {
     Netresult result;
-    if (state->board.get_boardsize() != BOARD_SIZE) {
+    if (state->board.get_board_size() != BOARD_SIZE) {
         return result;
     }
 
@@ -962,7 +962,7 @@ std::vector<float> Network::gather_features(const GameState* const state,
         begin(input_data) + 2 * INPUT_MOVES * NUM_INTERSECTIONS :
         begin(input_data) + (2 * INPUT_MOVES + 1) * NUM_INTERSECTIONS;
 
-    const auto moves = std::min<size_t>(state->get_movenum() + 1, INPUT_MOVES);
+    const auto moves = std::min<size_t>(state->get_move_number() + 1, INPUT_MOVES);
     // Go back in time, fill history boards
     for (auto h = size_t{0}; h < moves; h++) {
         // collect white, black occupation planes

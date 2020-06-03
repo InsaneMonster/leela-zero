@@ -67,7 +67,7 @@ size_t cfg_max_memory;
 size_t cfg_max_tree_size;
 int cfg_max_cache_ratio_percent;
 TimeManagement::enabled_t cfg_timemanage;
-int cfg_lagbuffer_cs;
+int cfg_lag_buffer_cs;
 int cfg_resignpct;
 int cfg_noise;
 int cfg_random_cnt;
@@ -196,7 +196,7 @@ AnalyzeTags::AnalyzeTags(std::istringstream& cmdstream, const GameState& game) {
             if (until_movenum < 1) {
                 return;
             }
-            until_movenum += game.get_movenum() - 1;
+            until_movenum += game.get_move_number() - 1;
 
             for (const auto& move : moves) {
                 if (tag == "avoid") {
@@ -329,7 +329,7 @@ void GTP::setup_default_parameters() {
     cfg_max_tree_size = UCTSearch::DEFAULT_MAX_MEMORY;
     cfg_max_cache_ratio_percent = 10;
     cfg_timemanage = TimeManagement::AUTO;
-    cfg_lagbuffer_cs = 100;
+    cfg_lag_buffer_cs = 100;
     cfg_weightsfile = leelaz_file("best-network");
 #ifdef USE_OPENCL
     cfg_gpus = { };
@@ -436,8 +436,8 @@ std::string GTP::get_life_list(const GameState & game, bool live) {
     const auto& board = game.board;
 
     if (live) {
-        for (int i = 0; i < board.get_boardsize(); i++) {
-            for (int j = 0; j < board.get_boardsize(); j++) {
+        for (int i = 0; i < board.get_board_size(); i++) {
+            for (int j = 0; j < board.get_board_size(); j++) {
                 int vertex = board.get_vertex(i, j);
 
                 if (board.get_state(vertex) != FastBoard::EMPTY) {
@@ -609,7 +609,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         cmdstream >> vertex;
 
         if (!cmdstream.fail()) {
-            if (!game.play_textmove(color, vertex)) {
+            if (!game.play_text(color, vertex)) {
                 gtp_fail_printf(id, "illegal move");
                 gtp_fail_printf(id, "illegal move");
             } else {
@@ -786,7 +786,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         if (!cmdstream.fail()) {
             // convert to centiseconds and set
-            game.set_timecontrol(maintime * 100, byotime * 100, byostones, 0);
+            game.set_time_control(maintime * 100, byotime * 100, byostones, 0);
 
             gtp_printf(id, "");
         } else {
@@ -885,7 +885,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         cmdstream >> tmp;   // eat fixed_handicap
         cmdstream >> stones;
 
-        if (!cmdstream.fail() && game.set_fixed_handicap(stones)) {
+        if (!cmdstream.fail() && game.place_fixed_handicap(stones)) {
             auto stonestring = game.board.get_stone_list();
             gtp_printf(id, "%s", stonestring.c_str());
         } else {
@@ -905,13 +905,13 @@ void GTP::execute(GameState & game, const std::string& xinput) {
     } else if (command.find("move_history") == 0) {
         gtp_printf_raw("=%s %s",
                        id == -1 ? "" : std::to_string(id).c_str(),
-                       game.get_movenum() == 0 ? "\n" : "");
+                       game.get_move_number() == 0 ? "\n" : "");
         auto game_history = game.get_game_history();
         // undone moves may still be present, so reverse the portion of the
         // array we need and resize to trim it down for iteration.
         std::reverse(begin(game_history),
-                     begin(game_history) + game.get_movenum() + 1);
-        game_history.resize(game.get_movenum());
+                     begin(game_history) + game.get_move_number() + 1);
+        game_history.resize(game.get_move_number());
         for (const auto &state : game_history) {
             auto coordinate = game.move_to_text(state->get_last_move());
             auto color = state->get_to_move() == FastBoard::WHITE ? "black" : "white";
@@ -952,7 +952,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             cmdstream >> vertex;
 
             if (!cmdstream.fail()) {
-                if (!game.play_textmove("black", vertex)) {
+                if (!game.play_text("black", vertex)) {
                     gtp_fail_printf(id, "illegal move");
                 } else {
                     game.set_handicap(game.get_handicap() + 1);
@@ -1022,18 +1022,18 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         if (tc_type.find("none") != std::string::npos) {
             // 30 mins
-            game.set_timecontrol(30 * 60 * 100, 0, 0, 0);
+            game.set_time_control(30 * 60 * 100, 0, 0, 0);
         } else if (tc_type.find("absolute") != std::string::npos) {
             cmdstream >> maintime;
-            game.set_timecontrol(maintime * 100, 0, 0, 0);
+            game.set_time_control(maintime * 100, 0, 0, 0);
         } else if (tc_type.find("canadian") != std::string::npos) {
             cmdstream >> maintime >> byotime >> byostones;
             // convert to centiseconds and set
-            game.set_timecontrol(maintime * 100, byotime * 100, byostones, 0);
+            game.set_time_control(maintime * 100, byotime * 100, byostones, 0);
         } else if (tc_type.find("byoyomi") != std::string::npos) {
             // KGS style Fischer clock
             cmdstream >> maintime >> byotime >> byoperiods;
-            game.set_timecontrol(maintime * 100, byotime * 100, 0, byoperiods);
+            game.set_time_control(maintime * 100, byotime * 100, 0, byoperiods);
         } else {
             gtp_fail_printf(id, "syntax not understood: kgs-time_settings invalid tc_type");
             return;
@@ -1408,7 +1408,7 @@ void GTP::execute_setoption(UCTSearch & search,
         std::istringstream valuestream(value);
         int lagbuffer;
         valuestream >> lagbuffer;
-        cfg_lagbuffer_cs = lagbuffer;
+        cfg_lag_buffer_cs = lagbuffer;
         gtp_printf(id, "");
     } else if (name == "pondering") {
         std::istringstream valuestream(value);

@@ -48,7 +48,7 @@
 #include "Random.h"
 #include "ThreadPool.h"
 #include "Utils.h"
-#include "Zobrist.h"
+#include "zobrist.h"
 
 using namespace Utils;
 
@@ -143,7 +143,7 @@ static void parse_commandline(int argc, char *argv[]) {
                        "Requires --noponder.")
         ("visits,v", po::value<int>(),
                      "Weaken engine by limiting the number of visits.")
-        ("lagbuffer,b", po::value<int>()->default_value(cfg_lagbuffer_cs),
+        ("lagbuffer,b", po::value<int>()->default_value(cfg_lag_buffer_cs),
                         "Safety margin for time usage in centiseconds.")
         ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
                         "Resign when score is less than x.\n"
@@ -448,10 +448,10 @@ static void parse_commandline(int argc, char *argv[]) {
 
     if (vm.count("lagbuffer")) {
         int lagbuffer = vm["lagbuffer"].as<int>();
-        if (lagbuffer != cfg_lagbuffer_cs) {
+        if (lagbuffer != cfg_lag_buffer_cs) {
             myprintf("Using per-move time margin of %.2fs.\n",
                      lagbuffer/100.0f);
-            cfg_lagbuffer_cs = lagbuffer;
+            cfg_lag_buffer_cs = lagbuffer;
         }
     }
     if (vm.count("benchmark")) {
@@ -509,10 +509,10 @@ void init_global_objects() {
 }
 
 void benchmark(GameState& game) {
-    game.set_timecontrol(0, 1, 0, 0);  // Set infinite time.
-    game.play_textmove("b", "r16");
-    game.play_textmove("w", "d4");
-    game.play_textmove("b", "c3");
+    game.set_time_control(0, 1, 0, 0);  // Set infinite time.
+    game.play_text("b", "r16");
+    game.play_text("w", "d4");
+    game.play_text("b", "c3");
 
     auto search = std::make_unique<UCTSearch>(game, *GTP::s_network);
     game.set_to_move(FastBoard::WHITE);

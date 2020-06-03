@@ -384,7 +384,7 @@ void Training::dump_supervised(const std::string& sgf_name,
 
         if (gamecount > 0 && gamecount % 1000 == 0) {
             Time elapsed;
-            auto elapsed_s = Time::timediff_seconds(start, elapsed);
+            auto elapsed_s = Time::time_difference_seconds(start, elapsed);
             Utils::myprintf(
                 "Game %5d, %5d positions in %5.2f seconds -> %d pos/s\n",
                 gamecount, train_pos, elapsed_s, int(train_pos / elapsed_s));
@@ -411,7 +411,7 @@ void Training::dump_supervised(const std::string& sgf_name,
         auto state =
             std::make_unique<GameState>(sgftree->follow_mainline_state());
         // Our board size is hardcoded in several places
-        if (state->board.get_boardsize() != BOARD_SIZE) {
+        if (state->board.get_board_size() != BOARD_SIZE) {
             continue;
         }
 

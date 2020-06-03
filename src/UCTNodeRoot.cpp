@@ -69,7 +69,7 @@ void UCTNode::kill_superkos(const GameState& state) {
             KoState mystate = state;
             mystate.play_move(move);
 
-            if (mystate.superko()) {
+            if (mystate.super_ko()) {
                 // Don't delete nodes for now, just mark them invalid.
                 child->invalidate();
             }
@@ -176,7 +176,7 @@ UCTNode* UCTNode::get_nopass_child(FastState& state) const {
            Note that this knowledge isn't required by the engine,
            we require it because we're overruling its moves. */
         if (child->m_move != FastBoard::PASS
-            && !state.board.is_eye(state.get_to_move(), child->m_move)) {
+            && !state.board.is_eye(child->m_move, state.get_to_move())) {
             return child.get();
         }
     }
