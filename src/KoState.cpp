@@ -27,7 +27,6 @@
     work.
 */
 
-#include "config.h"
 #include "KoState.h"
 
 #include <cassert>
@@ -38,38 +37,48 @@
 #include "FastState.h"
 #include "FullBoard.h"
 
-void KoState::init_game(int size, float komi) {
-    assert(size <= BOARD_SIZE);
+void KoState::init_game(int const board_size, float const komi)
+{
+    assert(board_size <= BOARD_SIZE);
 
-    FastState::init_game(size, komi);
-
-    m_ko_hash_history.clear();
-    m_ko_hash_history.emplace_back(board.get_ko_hash());
+    FastState::init_game(board_size, komi);
+	reset_ko_hash_history();
 }
 
-bool KoState::superko() const {
-    auto first = crbegin(m_ko_hash_history);
-    auto last = crend(m_ko_hash_history);
-
-    auto res = std::find(++first, last, board.get_ko_hash());
-
-    return (res != last);
+void KoState::reset_game()
+{
+	FastState::reset_game();
+	reset_ko_hash_history();
 }
 
-void KoState::reset_game() {
-    FastState::reset_game();
+bool KoState::super_ko() const
+{
+    auto first_ko_hash_iterator = crbegin(m_ko_hash_history);
+    auto const last_ko_hash_iterator = crend(m_ko_hash_history);
 
-    m_ko_hash_history.clear();
-    m_ko_hash_history.push_back(board.get_ko_hash());
+    auto const current_ko_hash_iterator = std::find(++first_ko_hash_iterator, last_ko_hash_iterator, board.get_hash_ko());
+
+    return current_ko_hash_iterator != last_ko_hash_iterator;
 }
 
-void KoState::play_move(int vertex) {
+void KoState::play_move(int const vertex)
+{
     play_move(board.get_to_move(), vertex);
 }
 
-void KoState::play_move(int color, int vertex) {
-    if (vertex != FastBoard::RESIGN) {
+void KoState::play_move(int const color, int const vertex)
+{
+	// Play the move in the base class if not resigning
+    if (vertex != FastBoard::RESIGN)
         FastState::play_move(color, vertex);
-    }
-    m_ko_hash_history.push_back(board.get_ko_hash());
+	
+    m_ko_hash_history.push_back(board.get_hash_ko());
+}
+
+void KoState::reset_ko_hash_history()
+{
+	m_ko_hash_history.clear();
+
+	// Push back the initial Ko hash of the board
+	m_ko_hash_history.push_back(board.get_hash_ko());
 }
