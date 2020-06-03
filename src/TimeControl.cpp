@@ -34,7 +34,6 @@
 #include <cstdlib>
 #include <memory>
 #include <regex>
-#include <sstream>
 
 #include "GTP.h"
 #include "Timing.h"
@@ -42,308 +41,340 @@
 
 using namespace Utils;
 
-TimeControl::TimeControl(int maintime, int byotime,
-                         int byostones, int byoperiods)
-    : m_maintime(maintime),
-      m_byotime(byotime),
-      m_byostones(byostones),
-      m_byoperiods(byoperiods) {
-
+TimeControl::TimeControl(const int main_time, const int byo_time, const int byo_stones, const int byo_periods)
+						: m_main_time(main_time), m_byo_time(byo_time), m_byo_stones(byo_stones), m_byo_periods(byo_periods)
+{
     reset_clocks();
 }
 
-std::string TimeControl::stones_left_to_text_sgf(const int color) const {
-    auto s = std::string{};
-    // We must be in byo-yomi before interpreting stones.
-    if (m_inbyo[color]) {
-        const auto c = color == FastBoard::BLACK ? "OB[" : "OW[";
-        if (m_byostones) {
-            s += c + std::to_string(m_stones_left[color]) + "]";
-        } else if (m_byoperiods) {
-            // KGS extension.
-            s += c + std::to_string(m_periods_left[color]) + "]";
-        }
-    }
-    return s;
+void TimeControl::reset_clocks()
+{
+	// Set byo-yomi status
+	m_remaining_time = { m_main_time, m_main_time };
+	m_stones_left = { m_byo_stones, m_byo_stones };
+	m_periods_left = { m_byo_periods, m_byo_periods };
+	m_in_byo_yomi = { m_main_time <= 0, m_main_time <= 0 };
+
+	// Add time back to our clocks
+	if (m_in_byo_yomi[0])
+		m_remaining_time[0] = m_byo_time;
+
+	if (m_in_byo_yomi[1])
+		m_remaining_time[1] = m_byo_time;
 }
 
-std::string TimeControl::to_text_sgf() const {
-    if (m_byotime != 0 && m_byostones == 0 && m_byoperiods == 0) {
-        return ""; // Infinite time.
-    }
-    auto s = "TM[" + std::to_string(m_maintime / 100) + "]";
-    if (m_byotime) {
-        if (m_byostones) {
-            s += "OT[" + std::to_string(m_byostones) + "/";
-            s += std::to_string(m_byotime / 100) + " Canadian]";
-        } else {
-            assert(m_byoperiods);
-            s += "OT[" + std::to_string(m_byoperiods) + "x";
-            s += std::to_string(m_byotime / 100) + " byo-yomi]";
-        }
-        s += stones_left_to_text_sgf(FastBoard::BLACK);
-        s += stones_left_to_text_sgf(FastBoard::WHITE);
-    }
-    // Generously round up to avoid a remaining time of 0 triggering byo-yomi
-    // to be started when the sgf is loaded. This happens because byo-yomi
-    // stones have to be only written to the sgf when actually in byo-yomi
-    // and this is interpreted in adjust_time() as a special case
-    // that starts byo-yomi.
-    const auto black_time_left = (m_remaining_time[FastBoard::BLACK] + 99) / 100;
-    const auto white_time_left = (m_remaining_time[FastBoard::WHITE] + 99) / 100;
-    s += "BL[" + std::to_string(black_time_left) + "]";
-    s += "WL[" + std::to_string(white_time_left) + "]";
-    return s;
+void TimeControl::start(const int color)
+{
+	m_times[color] = Time();
 }
 
-std::shared_ptr<TimeControl> TimeControl::make_from_text_sgf(
-    const std::string& maintime, const std::string& byoyomi,
-    const std::string& black_time_left, const std::string& white_time_left,
-    const std::string& black_moves_left, const std::string& white_moves_left) {
-    const auto maintime_centis = std::stoi(maintime) * 100;
-    auto byotime = 0;
-    auto byostones = 0;
-    auto byoperiods = 0;
-    if (!byoyomi.empty()) {
-        std::smatch m;
-        const auto re_canadian = std::regex{"(\\d+)/(\\d+) Canadian"};
-        const auto re_byoyomi = std::regex{"(\\d+)x(\\d+) byo-yomi"};
-        if (std::regex_match(byoyomi, m, re_canadian)) {
-            byostones = std::stoi(m[1]);
-            byotime = std::stoi(m[2]) * 100;
-        } else if (std::regex_match(byoyomi, m, re_byoyomi)) {
-            byoperiods = std::stoi(m[1]);
-            byotime = std::stoi(m[2]) * 100;
-        } else {
-            // Unrecognised byo-yomi syntax.
+void TimeControl::stop(const int color)
+{
+	const Time stop;
+	const auto elapsed_centiseconds = Time::time_difference_centiseconds(m_times[color], stop);
+
+	assert(elapsed_centiseconds >= 0);
+
+	m_remaining_time[color] -= elapsed_centiseconds;
+
+	if (m_in_byo_yomi[color])
+	{
+		if (m_byo_stones)
+			m_stones_left[color]--;
+		else if (m_byo_periods && elapsed_centiseconds > m_byo_time)
+			m_periods_left[color]--;
+	}
+
+	// Time up, entering byo-yomi
+	if (!m_in_byo_yomi[color] && m_remaining_time[color] <= 0)
+	{
+		m_remaining_time[color] = m_byo_time;
+		m_stones_left[color] = m_byo_stones;
+		m_periods_left[color] = m_byo_periods;
+		m_in_byo_yomi[color] = true;
+	}
+	// Reset byo-yomi time and stones
+	else if (m_in_byo_yomi[color] && m_byo_stones && m_stones_left[color] <= 0)
+	{
+		m_remaining_time[color] = m_byo_time;
+		m_stones_left[color] = m_byo_stones;
+	}
+	else if (m_in_byo_yomi[color] && m_byo_periods)
+	{
+		m_remaining_time[color] = m_byo_time;
+	}
+}
+
+void TimeControl::adjust_time(const int color, const int time, const int stones)
+{
+	m_remaining_time[color] = time;
+
+	// Some GTP things send 0 0 at the end of main time	
+	if (!time && !stones)
+	{
+		m_in_byo_yomi[color] = true;
+		m_remaining_time[color] = m_byo_time;
+		m_stones_left[color] = m_byo_stones;
+		m_periods_left[color] = m_byo_periods;
+	}
+
+	// Stones are only given in byo-yomi
+	if (stones)
+		m_in_byo_yomi[color] = true;
+
+	// We must be in byo-yomi before interpreting stones the previous condition guarantees we do this if != 0
+	if (m_in_byo_yomi[color])
+	{
+		if (m_byo_stones)
+			m_stones_left[color] = stones;
+		// KGS extension
+		else if (m_byo_periods)
+			m_periods_left[color] = stones;
+	}
+}
+
+void TimeControl::display_times()
+{
+	display_color_time(FastBoard::BLACK);
+	display_color_time(FastBoard::WHITE);
+	myprintf("\n");
+}
+
+std::string TimeControl::to_text_sgf() const
+{
+	// Infinite time
+	if (m_byo_time != 0 && m_byo_stones == 0 && m_byo_periods == 0)
+		return "";
+
+	auto text_sgf = "TM[" + std::to_string(m_main_time / 100) + "]";
+
+	if (m_byo_time)
+	{
+		if (m_byo_stones)
+		{
+			text_sgf += "OT[" + std::to_string(m_byo_stones) + "/";
+			text_sgf += std::to_string(m_byo_time / 100) + " Canadian]";
+		}
+		else
+		{
+			assert(m_byo_periods);
+			text_sgf += "OT[" + std::to_string(m_byo_periods) + "x";
+			text_sgf += std::to_string(m_byo_time / 100) + " byo-yomi]";
+		}
+
+		text_sgf += stones_left_to_text_sgf(FastBoard::BLACK);
+		text_sgf += stones_left_to_text_sgf(FastBoard::WHITE);
+	}
+
+	// Generously round up to avoid a remaining time of 0 triggering byo-yomi to be started when the sgf is loaded. This happens because byo-yomi
+	// stones have to be only written to the sgf when actually in byo-yomi and this is interpreted in adjust_time() as a special case that starts byo-yomi
+	const auto black_time_left = (m_remaining_time[FastBoard::BLACK] + 99) / 100;
+	const auto white_time_left = (m_remaining_time[FastBoard::WHITE] + 99) / 100;
+
+	text_sgf += "BL[" + std::to_string(black_time_left) + "]";
+	text_sgf += "WL[" + std::to_string(white_time_left) + "]";
+
+	return text_sgf;
+}
+
+std::shared_ptr<TimeControl> TimeControl::make_from_text_sgf(const std::string& maintime, const std::string& byo_yomi, 
+															 const std::string& black_time_left, const std::string& white_time_left, 
+															 const std::string& black_moves_left, const std::string& white_moves_left)
+{
+    const auto main_time_centiseconds = std::stoi(maintime) * 100;
+
+	auto byo_time = 0;
+    auto byo_stones = 0;
+    auto byo_periods = 0;
+	
+    if (!byo_yomi.empty()) 
+	{
+        std::smatch match;
+    	
+        const auto regex_canadian = std::regex{"(\\d+)/(\\d+) Canadian"};
+        const auto regex_byo_yomi = std::regex{"(\\d+)x(\\d+) byo-yomi"};
+
+    	// Unrecognized byo-yomi syntax
+    	if (std::regex_match(byo_yomi, match, regex_canadian)) 
+		{
+            byo_stones = std::stoi(match[1]);
+            byo_time = std::stoi(match[2]) * 100;
+        }
+    	else if (std::regex_match(byo_yomi, match, regex_byo_yomi)) 
+		{
+            byo_periods = std::stoi(match[1]);
+            byo_time = std::stoi(match[2]) * 100;
         }
     }
-    const auto timecontrol_ptr = std::make_shared<TimeControl>(maintime_centis,
-                                                               byotime,
-                                                               byostones,
-                                                               byoperiods);
-    if (!black_time_left.empty()) {
+	
+    const auto timecontrol_ptr = std::make_shared<TimeControl>(main_time_centiseconds, byo_time, byo_stones, byo_periods);
+	
+    if (!black_time_left.empty()) 
+	{
         const auto time = std::stoi(black_time_left) * 100;
-        const auto stones = black_moves_left.empty() ?
-                            0 : std::stoi(black_moves_left);
+        const auto stones = black_moves_left.empty() ? 0 : std::stoi(black_moves_left);
+    	
         timecontrol_ptr->adjust_time(FastBoard::BLACK, time, stones);
     }
-    if (!white_time_left.empty()) {
+	
+    if (!white_time_left.empty()) 
+	{
         const auto time = std::stoi(white_time_left) * 100;
-        const auto stones = white_moves_left.empty() ?
-                            0 : std::stoi(white_moves_left);
+        const auto stones = white_moves_left.empty() ? 0 : std::stoi(white_moves_left);
+    	
         timecontrol_ptr->adjust_time(FastBoard::WHITE, time, stones);
     }
+	
     return timecontrol_ptr;
 }
 
-void TimeControl::reset_clocks() {
-    m_remaining_time = {m_maintime, m_maintime};
-    m_stones_left = {m_byostones, m_byostones};
-    m_periods_left = {m_byoperiods, m_byoperiods};
-    m_inbyo = {m_maintime <= 0, m_maintime <= 0};
-    // Now that byo-yomi status is set, add time
-    // back to our clocks
-    if (m_inbyo[0]) {
-        m_remaining_time[0] = m_byotime;
-    }
-    if (m_inbyo[1]) {
-        m_remaining_time[1] = m_byotime;
-    }
+bool TimeControl::can_accumulate_time(const int color) const
+{
+	// If there is a base time, we should expect to be able to accumulate. This may be somewhat
+	// of an illusion if the base time is tiny and byo yomi time is big.
+	if (m_in_byo_yomi[color])
+	{
+		// Cannot accumulate in Japanese byo yomi
+		if (m_byo_periods)
+			return false;
+
+		// Cannot accumulate in Canadian style with one move remaining in the period
+		if (m_byo_stones && m_stones_left[color] == 1)
+			return false;
+	}
+
+	return true;
 }
 
-void TimeControl::start(int color) {
-    m_times[color] = Time();
-}
-
-void TimeControl::stop(int color) {
-    Time stop;
-    int elapsed_centis = Time::timediff_centis(m_times[color], stop);
-
-    assert(elapsed_centis >= 0);
-
-    m_remaining_time[color] -= elapsed_centis;
-
-    if (m_inbyo[color]) {
-        if (m_byostones) {
-            m_stones_left[color]--;
-        } else if (m_byoperiods) {
-            if (elapsed_centis > m_byotime) {
-                m_periods_left[color]--;
-            }
-        }
-    }
-
-    /*
-        time up, entering byo yomi
-    */
-    if (!m_inbyo[color] && m_remaining_time[color] <= 0) {
-        m_remaining_time[color] = m_byotime;
-        m_stones_left[color] = m_byostones;
-        m_periods_left[color] = m_byoperiods;
-        m_inbyo[color] = true;
-    } else if (m_inbyo[color] && m_byostones && m_stones_left[color] <= 0) {
-        // reset byoyomi time and stones
-        m_remaining_time[color] = m_byotime;
-        m_stones_left[color] = m_byostones;
-    } else if (m_inbyo[color] && m_byoperiods) {
-        m_remaining_time[color] = m_byotime;
-    }
-}
-
-void TimeControl::display_color_time(int color) {
-    auto rem = m_remaining_time[color] / 100;  /* centiseconds to seconds */
-    auto minuteDiv = std::div(rem, 60);
-    auto hourDiv = std::div(minuteDiv.quot, 60);
-    auto seconds = minuteDiv.rem;
-    auto minutes = hourDiv.rem;
-    auto hours = hourDiv.quot;
-    auto name = color == 0 ? "Black" : "White";
-    myprintf("%s time: %02d:%02d:%02d", name, hours, minutes, seconds);
-    if (m_inbyo[color]) {
-        if (m_byostones) {
-            myprintf(", %d stones left", m_stones_left[color]);
-        } else if (m_byoperiods) {
-            myprintf(", %d period(s) of %d seconds left",
-                     m_periods_left[color], m_byotime / 100);
-        }
-    }
-    myprintf("\n");
-}
-
-void TimeControl::display_times() {
-    display_color_time(FastBoard::BLACK);
-    display_color_time(FastBoard::WHITE);
-    myprintf("\n");
-}
-
-int TimeControl::max_time_for_move(int boardsize,
-                                   int color, size_t movenum) const {
-    // default: no byo yomi (absolute)
+int TimeControl::max_time_for_move(const int board_size, const int color, const size_t move_number) const
+{
+    // Default: no byo yomi (absolute)
     auto time_remaining = m_remaining_time[color];
-    auto moves_remaining = get_moves_expected(boardsize, movenum);
+    auto moves_remaining = get_moves_expected(board_size, move_number);
     auto extra_time_per_move = 0;
 
-    if (m_byotime != 0) {
-        /*
-          no periods or stones set means
-          infinite time = 1 month
-        */
-        if (m_byostones == 0 && m_byoperiods == 0) {
+    if (m_byo_time != 0) 
+	{
+        // No periods or stones set means infinite time = 1 month
+        if (m_byo_stones == 0 && m_byo_periods == 0) 
             return 31 * 24 * 60 * 60 * 100;
-        }
 
-        // byo yomi and in byo yomi
-        if (m_inbyo[color]) {
-            if (m_byostones) {
+        // Byo yomi and in byo yomi
+        if (m_in_byo_yomi[color]) 
+		{
+            if (m_byo_stones) 
+			{
                 moves_remaining = m_stones_left[color];
-            } else {
-                assert(m_byoperiods);
+            }
+        	else 
+			{
+                assert(m_byo_periods);
                 // Just use the byo yomi period
                 time_remaining = 0;
-                extra_time_per_move = m_byotime;
+                extra_time_per_move = m_byo_time;
             }
-        } else {
-            /*
-              byo yomi time but not in byo yomi yet
-            */
-            if (m_byostones) {
-                int byo_extra = m_byotime / m_byostones;
+        }
+    	else 
+		{
+            // Byo yomi time but not in byo yomi yet
+            if (m_byo_stones) 
+			{
+				const auto byo_extra = m_byo_time / m_byo_stones;
                 time_remaining = m_remaining_time[color] + byo_extra;
+            	
                 // Add back the guaranteed extra seconds
                 extra_time_per_move = byo_extra;
-            } else {
-                assert(m_byoperiods);
-                int byo_extra = m_byotime * (m_periods_left[color] - 1);
+            }
+    		else 
+			{
+                assert(m_byo_periods);
+    			
+                const auto byo_extra = m_byo_time * (m_periods_left[color] - 1);
                 time_remaining = m_remaining_time[color] + byo_extra;
+    			
                 // Add back the guaranteed extra seconds
-                extra_time_per_move = m_byotime;
+                extra_time_per_move = m_byo_time;
             }
         }
     }
 
-    // always keep a cfg_lagbugger_cs centisecond margin
-    // for network hiccups or GUI lag
-    auto base_time = std::max(time_remaining - cfg_lagbuffer_cs, 0) /
-                     std::max(moves_remaining, 1);
-    auto inc_time = std::max(extra_time_per_move - cfg_lagbuffer_cs, 0);
+    // Always keep a cfg lag-buffer_cs centiseconds margin for network hiccups or GUI lag
+    const auto base_time = std::max(time_remaining - cfg_lag_buffer_cs, 0) / std::max(static_cast<int>(moves_remaining), 1);
+    const auto inc_time = std::max(extra_time_per_move - cfg_lag_buffer_cs, 0);
 
     return base_time + inc_time;
 }
 
-void TimeControl::adjust_time(int color, int time, int stones) {
-    m_remaining_time[color] = time;
-    // From pachi: some GTP things send 0 0 at the end of main time
-    if (!time && !stones) {
-        m_inbyo[color] = true;
-        m_remaining_time[color] = m_byotime;
-        m_stones_left[color] = m_byostones;
-        m_periods_left[color] = m_byoperiods;
-    }
-    if (stones) {
-        // stones are only given in byo-yomi
-        m_inbyo[color] = true;
-    }
-    // we must be in byo-yomi before interpreting stones
-    // the previous condition guarantees we do this if != 0
-    if (m_inbyo[color]) {
-        if (m_byostones) {
-            m_stones_left[color] = stones;
-        } else if (m_byoperiods) {
-            // KGS extension
-            m_periods_left[color] = stones;
-        }
-    }
-}
-
-size_t TimeControl::opening_moves(int boardsize) const {
-    auto num_intersections = boardsize * boardsize;
-    auto fast_moves = num_intersections / 6;
+size_t TimeControl::opening_moves(const int board_size)
+{
+	const auto intersections_number = board_size * board_size;
+	const auto fast_moves = intersections_number / 6;
+	
     return fast_moves;
 }
 
-int TimeControl::get_moves_expected(int boardsize, size_t movenum) const {
-    auto board_div = 5;
-    if (cfg_timemanage != TimeManagement::OFF) {
-        // We will take early exits with time management on, so
-        // it's OK to make our base time bigger.
-        board_div = 9;
-    }
+std::string TimeControl::stones_left_to_text_sgf(const int color) const
+{
+	auto test_sgf = std::string{};
 
-    // Note this is constant as we play, so it's fair
-    // to underestimate quite a bit.
-    auto base_remaining = (boardsize * boardsize) / board_div;
+	// Check if in in byo-yomi before interpreting stones
+	if (m_in_byo_yomi[color])
+	{
+		const auto color_text = color == FastBoard::BLACK ? "OB[" : "OW[";
 
-    // Don't think too long in the opening.
-    auto fast_moves = opening_moves(boardsize);
-    if (movenum < fast_moves) {
-        return (base_remaining + fast_moves) - movenum;
-    } else {
-        return base_remaining;
-    }
+		if (m_byo_stones)
+			test_sgf += color_text + std::to_string(m_stones_left[color]) + "]";
+		// KGS extension
+		else if (m_byo_periods)
+			test_sgf += color_text + std::to_string(m_periods_left[color]) + "]";
+	}
+
+	return test_sgf;
 }
 
-// Returns true if we are in a time control where we
-// can save up time. If not, we should not move quickly
-// even if certain of our move, but plough ahead.
-bool TimeControl::can_accumulate_time(int color) const {
-    if (m_inbyo[color]) {
-        // Cannot accumulate in Japanese byo yomi
-        if (m_byoperiods) {
-            return false;
-        }
+void TimeControl::display_color_time(const int color)
+{
+	// Convert centiseconds to seconds then get minutes and hours
+	const auto remaining_time_seconds = m_remaining_time[color] / 100;
+	const auto remaining_time_minutes = std::div(remaining_time_seconds, 60);
+	const auto remaining_time_hours = std::div(remaining_time_minutes.quot, 60);
 
-        // Cannot accumulate in Canadese style with
-        // one move remaining in the period
-        if (m_byostones && m_stones_left[color] == 1) {
-            return false;
-        }
-    } else {
-        // If there is a base time, we should expect
-        // to be able to accumulate. This may be somewhat
-        // of an illusion if the base time is tiny and byo
-        // yomi time is big.
-    }
+	// Compute proper timings
+	const auto seconds = remaining_time_minutes.rem;
+	const auto minutes = remaining_time_hours.rem;
+	const auto hours = remaining_time_hours.quot;
 
-    return true;
+	const auto name = color == 0 ? "Black" : "White";
+
+	myprintf("%s time: %02d:%02d:%02d", name, hours, minutes, seconds);
+
+	if (m_in_byo_yomi[color])
+	{
+		if (m_byo_stones)
+			myprintf(", %d stones left", m_stones_left[color]);
+		else if (m_byo_periods)
+			myprintf(", %d period(s) of %d seconds left", m_periods_left[color], m_byo_time / 100);
+	}
+
+	myprintf("\n");
+}
+
+unsigned int TimeControl::get_moves_expected(const int board_size, const size_t move_number)
+{
+	auto board_div = 5;
+
+	// We will take early exits with time management on, so it's OK to make our base time bigger
+	if (cfg_timemanage != TimeManagement::OFF)
+		board_div = 9;
+
+	// Note this is constant as we play, so it's fair to underestimate quite a bit
+	const auto base_remaining = (board_size * board_size) / board_div;
+
+	// Don't think too long in the opening
+	const auto fast_moves = opening_moves(board_size);
+
+	if (move_number < fast_moves)
+		return base_remaining + fast_moves - move_number;
+
+	return base_remaining;
 }

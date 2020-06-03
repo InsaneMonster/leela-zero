@@ -31,16 +31,17 @@
 
 #include <chrono>
 
-
-int Time::timediff_centis(Time start, Time end) {
-    return std::chrono::duration_cast<std::chrono::milliseconds>
-        (end.m_time - start.m_time).count() / 10;
+Time::Time()
+{
+	m_time = std::chrono::steady_clock::now();
 }
 
-double Time::timediff_seconds(Time start, Time end) {
+int Time::time_difference_centiseconds(const Time start, const Time end)
+{
+    return static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(end.m_time - start.m_time).count() / 10);
+}
+
+double Time::time_difference_seconds(const Time start, const Time end)
+{
     return std::chrono::duration<double>(end.m_time - start.m_time).count();
-}
-
-Time::Time() {
-    m_time = std::chrono::steady_clock::now();
 }

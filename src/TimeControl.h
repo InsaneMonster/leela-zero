@@ -33,47 +33,70 @@
 #include <array>
 #include <memory>
 
-#include "config.h"
 #include "Timing.h"
 
-class TimeControl {
+/// Time control class to manage player moves in a timely fashion
+class TimeControl
+{
 public:
-    /*
-        Initialize time control. Timing info is per GTP and in centiseconds
-    */
-    TimeControl(int maintime = 60 * 60 * 100,
-                int byotime = 0, int byostones = 0,
-                int byoperiods = 0);
+	
+    /// Initialize time control. Timing info is per GTP and in centiseconds. It automatically resets clocks.
+    explicit TimeControl(int main_time = 60 * 60 * 100, int byo_time = 0, int byo_stones = 0, int byo_periods = 0);
 
+	/// Reset all clocks (remaining time, stones and periods left and byo-yomi counting)
+	void reset_clocks();
+	/// Start the clock time for the given player color
     void start(int color);
+	/// Stop the clock time for the given player color
     void stop(int color);
-    int max_time_for_move(int boardsize, int color, size_t movenum) const;
-    void adjust_time(int color, int time, int stones);
+
+	/// Set the given time and stones for the given color
+	void adjust_time(int color, int time, int stones);
+	/// Print color times for both colors
     void display_times();
-    void reset_clocks();
-    bool can_accumulate_time(int color) const;
-    size_t opening_moves(int boardsize) const;
-    std::string to_text_sgf() const;
-    static std::shared_ptr<TimeControl> make_from_text_sgf(
-        const std::string& maintime, const std::string& byoyomi,
-        const std::string& black_time_left, const std::string& white_time_left,
-        const std::string& black_moves_left, const std::string& white_moves_left);
+
+	/// Convert the current time to text-sgf format
+	std::string to_text_sgf() const;
+
+	/// Get a TimeControl instance from text-sfg format
+    static std::shared_ptr<TimeControl> make_from_text_sgf(const std::string& maintime, const std::string& byo_yomi,
+														   const std::string& black_time_left, const std::string& white_time_left,
+														   const std::string& black_moves_left, const std::string& white_moves_left);
+	
+	/// Returns true if we are in a time control where we can save up time. If not, we should not move quickly even if certain of our move
+	bool can_accumulate_time(int color) const;
+
+	/// Get the maximum allowed time for a certain color with a certain board size and a certain number of already executed moves
+	int max_time_for_move(int board_size, int color, size_t move_number) const;
+	/// Get the number of fast opening move given a certain board size (the intersection number divided by six)
+	static size_t opening_moves(int board_size);
+	
 private:
-    std::string stones_left_to_text_sgf(const int color) const;
+
+	/// Convert the current stones left to text-sgf format
+    std::string stones_left_to_text_sgf(int color) const;
+	/// Display the current times for the given color
     void display_color_time(int color);
-    int get_moves_expected(int boardsize, size_t movenum) const;
 
-    int m_maintime;
-    int m_byotime;
-    int m_byostones;
-    int m_byoperiods;
+	/// Get the number of moves expected given a certain board size and a certain number of already executed moves
+    static unsigned int get_moves_expected(int board_size, size_t move_number);
 
-    std::array<int,  2> m_remaining_time;    /* main time per player */
-    std::array<int,  2> m_stones_left;       /* stones to play in byo period */
-    std::array<int,  2> m_periods_left;      /* byo periods */
-    std::array<bool, 2> m_inbyo;             /* player is in byo yomi */
+	int m_main_time;
+	int m_byo_time;
+	int m_byo_stones;
+	int m_byo_periods;
 
-    std::array<Time, 2> m_times;             /* storage for player times */
+	/// Main time per player
+	std::array<int, 2> m_remaining_time{};
+	/// Stones to play in byo period 
+	std::array<int, 2> m_stones_left{};
+	/// Byo periods
+	std::array<int, 2> m_periods_left{};
+	/// player is in byo yomi
+	std::array<bool, 2> m_in_byo_yomi{};
+	/// Storage for player times 
+	std::array<Time, 2> m_times;
+	
 };
 
 #endif

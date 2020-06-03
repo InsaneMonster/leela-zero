@@ -32,19 +32,24 @@
 
 #include <chrono>
 
-class Time {
+/// Wrapper class for time measurements
+class Time
+{
 public:
-    /* sets to current time */
+	
+    /// Set current time
     Time();
 
-    /* time difference in centiseconds */
-    static int timediff_centis(Time start, Time end);
+    /// Get the time difference in centiseconds
+    static int time_difference_centiseconds(Time start, Time end);
 
-    /* time difference in seconds */
-    static double timediff_seconds(Time start, Time end);
+    /// Get the time difference in seconds
+    static double time_difference_seconds(Time start, Time end);
 
 private:
+	
     std::chrono::steady_clock::time_point m_time;
+	
 };
 
 #endif
