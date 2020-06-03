@@ -31,50 +31,70 @@
 #define FASTSTATE_H_INCLUDED
 
 #include <cstddef>
-#include <array>
 #include <string>
-#include <vector>
 
 #include "FullBoard.h"
 
-class FastState {
+/// Base class for the game state
+class FastState
+{
 public:
-    void init_game(int size, float komi);
-    void reset_game();
-    void reset_board();
 
-    void play_move(int vertex);
-    bool is_move_legal(int color, int vertex) const;
+	/// Initialize the game state with the given board size and the given komi
+    void init_game(int board_size, float komi);
+	/// Reset the game state by resetting the board and all attributes (keeping board-size and komi the same)
+	void reset_game();
 
-    void set_komi(float komi);
-    float get_komi() const;
-    void set_handicap(int hcap);
-    int get_handicap() const;
-    int get_passes() const;
-    int get_to_move() const;
-    void set_to_move(int tomove);
-    void set_passes(int val);
+	/// Print the current state of the game (board included) on the screen
+	void display_state() const;
+	/// Play the move at the current state of the game, at the given vertex with the color which has to move currently
+	void play_move(int vertex);
+	/// Increase the number of passes (maximum of 4) by 1 pass
     void increment_passes();
 
-    float final_score() const;
+	/// Compute the hash of the given symmetry on the current m_ko_hash
     std::uint64_t get_symmetry_hash(int symmetry) const;
+	/// Compute the final score of the game state board
+	float final_score() const;
+	
+	/// Get the string representation of the given move
+    std::string move_to_text(int move) const;
+	/// Check if the move of the given color at the given vertex is legal
+	bool is_move_legal(int color, int vertex) const;
 
-    size_t get_movenum() const;
-    int get_last_move() const;
-    void display_state();
-    std::string move_to_text(int move);
+	// Getter methods
 
-    FullBoard board;
+	float get_komi() const;
+	int get_handicap() const;
+	int get_passes() const;
+	int get_to_move() const;
+	size_t get_move_number() const;
+	int get_last_move() const;
 
-    float m_komi;
-    int m_handicap;
-    int m_passes;
-    int m_komove;
-    size_t m_movenum;
-    int m_lastmove;
+	// Setter methods
+	
+	void set_komi(float komi);
+	void set_handicap(int handicap);
+	void set_passes(int passes);
+	void set_to_move(int to_move);
+
+    FullBoard board{};
 
 protected:
+
+	/// Play the move at the current state of the game, at the given vertex with the given color
     void play_move(int color, int vertex);
+
+	size_t m_move_numbers = 0;
+
+private:
+
+	int m_ko_move = FastBoard::NO_VERTEX;
+	int m_last_move = FastBoard::NO_VERTEX;
+
+	float m_komi = 0;
+	int m_handicap = 0;
+	int m_passes = 0;
 };
 
 #endif
