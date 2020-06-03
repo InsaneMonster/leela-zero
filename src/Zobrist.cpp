@@ -31,29 +31,28 @@
 #include "Zobrist.h"
 #include "Random.h"
 
-std::array<std::array<std::uint64_t, FastBoard::NUM_VERTICES>,     4> Zobrist::zobrist;
-std::array<std::uint64_t, FastBoard::NUM_VERTICES>                    Zobrist::zobrist_ko;
-std::array<std::array<std::uint64_t, FastBoard::NUM_VERTICES * 2>, 2> Zobrist::zobrist_pris;
-std::array<std::uint64_t, 5>                                          Zobrist::zobrist_pass;
+std::array<std::array<std::uint64_t, FastBoard::VERTICES_NUMBER>, 4> Zobrist::zobrist_states;
+std::array<std::uint64_t, FastBoard::VERTICES_NUMBER> Zobrist::zobrist_ko_move;
+std::array<std::array<std::uint64_t, FastBoard::VERTICES_NUMBER * 2>, 2> Zobrist::zobrist_prisoners;
+std::array<std::uint64_t, 5> Zobrist::zobrist_passes;
 
-void Zobrist::init_zobrist(Random& rng) {
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < FastBoard::NUM_VERTICES; j++) {
-            Zobrist::zobrist[i][j] = rng.randuint64();
-        }
-    }
+void Zobrist::init_zobrist(Random& rng)
+{
+	// Generate random hashes for states
+    for (auto i = 0; i < STATES; i++) 
+        for (auto j = 0; j < FastBoard::VERTICES_NUMBER; j++) 
+            zobrist_states[i][j] = rng.randuint64();
 
-    for (int j = 0; j < FastBoard::NUM_VERTICES; j++) {
-        Zobrist::zobrist_ko[j] = rng.randuint64();
-    }
+	// Generate random hashes for ko moves
+    for (auto j = 0; j < FastBoard::VERTICES_NUMBER; j++)
+        zobrist_ko_move[j] = rng.randuint64();
 
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < FastBoard::NUM_VERTICES * 2; j++) {
-            Zobrist::zobrist_pris[i][j] = rng.randuint64();
-        }
-    }
+	// Generate random hashes for prisoners
+    for (auto i = 0; i < COLORS; i++) 
+        for (auto j = 0; j < FastBoard::VERTICES_NUMBER * 2; j++)
+            zobrist_prisoners[i][j] = rng.randuint64();
 
-    for (int i = 0; i < 5; i++) {
-        Zobrist::zobrist_pass[i]  = rng.randuint64();
-    }
+	// Generate random hashes for passes
+    for (auto i = 0; i < PASSES; i++)
+        zobrist_passes[i]  = rng.randuint64();
 }

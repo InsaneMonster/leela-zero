@@ -29,25 +29,36 @@
 #ifndef ZOBRIST_H_INCLUDED
 #define ZOBRIST_H_INCLUDED
 
-#include "config.h"
-
 #include <array>
 #include <cstdint>
 
 #include "FastBoard.h"
 #include "Random.h"
 
-class Zobrist {
+/// Class storage for Zobrist hashes of the games
+class Zobrist
+{
 public:
-    static constexpr auto zobrist_empty = 0x1234567887654321;
-    static constexpr auto zobrist_blacktomove = 0xABCDABCDABCDABCD;
+	
+    static constexpr auto ZOBRIST_EMPTY = 0x1234567887654321;
+    static constexpr auto ZOBRIST_BLACK_TO_MOVE = 0xABCDABCDABCDABCD;
 
-    static std::array<std::array<std::uint64_t, FastBoard::NUM_VERTICES>,     4> zobrist;
-    static std::array<std::uint64_t, FastBoard::NUM_VERTICES>                    zobrist_ko;
-    static std::array<std::array<std::uint64_t, FastBoard::NUM_VERTICES * 2>, 2> zobrist_pris;
-    static std::array<std::uint64_t, 5>                                          zobrist_pass;
+	static constexpr auto STATES = 4;
+	static constexpr auto COLORS = 2;
+	static constexpr auto PASSES = 5;
 
+	/// Hashes matrix of board states with cardinality VERTICES x STATES
+    static std::array<std::array<std::uint64_t, FastBoard::VERTICES_NUMBER>, STATES> zobrist_states;
+	/// Hashes array of ko moves with cardinality VERTICES
+    static std::array<std::uint64_t, FastBoard::VERTICES_NUMBER> zobrist_ko_move;
+	/// Hashes matrix of prisoners with cardinality VERTICES (x2???) x COLORS
+    static std::array<std::array<std::uint64_t, FastBoard::VERTICES_NUMBER * 2>, COLORS> zobrist_prisoners;
+	/// Hashes array of passes with cardinality PASSES
+    static std::array<std::uint64_t, PASSES> zobrist_passes;
+
+	/// Initialize Zobrist hashes
     static void init_zobrist(Random& rng);
+
 };
 
 #endif
