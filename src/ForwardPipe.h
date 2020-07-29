@@ -33,37 +33,43 @@
 #include <memory>
 #include <vector>
 
-#include "config.h"
-
-class ForwardPipe {
+/// TODO
+class ForwardPipe
+{
 public:
-    class ForwardPipeWeights {
+	
+    class ForwardPipeWeights
+	{
     public:
+    	
         // Input + residual block tower
+    	
         std::vector<std::vector<float>> m_conv_weights;
         std::vector<std::vector<float>> m_conv_biases;
         std::vector<std::vector<float>> m_batchnorm_means;
         std::vector<std::vector<float>> m_batchnorm_stddevs;
 
         // Policy head
-        std::vector<float> m_conv_pol_w;
-        std::vector<float> m_conv_pol_b;
+    	
+        std::vector<float> m_conv_pol_weights;
+        std::vector<float> m_conv_pol_bias;
 
-        std::vector<float> m_conv_val_w;
-        std::vector<float> m_conv_val_b;
+        std::vector<float> m_conv_val_weights;
+        std::vector<float> m_conv_val_bias;
+    	
     };
 
     virtual ~ForwardPipe() = default;
 
-    virtual void initialize(const int channels) = 0;
-    virtual bool needs_autodetect() { return false; };
-    virtual void forward(const std::vector<float>& input,
-                         std::vector<float>& output_pol,
-                         std::vector<float>& output_val) = 0;
-    virtual void push_weights(unsigned int filter_size,
-                              unsigned int channels,
-                              unsigned int outputs,
-                              std::shared_ptr<const ForwardPipeWeights> weights) = 0;
+    virtual void initialize(int channels) = 0;
+	
+    virtual bool needs_autodetect()
+    {
+	    return false;
+    }
+	
+    virtual void forward(const std::vector<float>& input, std::vector<float>& output_pol, std::vector<float>& output_val) = 0;
+    virtual void push_weights(unsigned int filter_size, unsigned int channels, unsigned int outputs, std::shared_ptr<const ForwardPipeWeights> weights) = 0;
 };
 
 #endif

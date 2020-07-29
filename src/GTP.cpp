@@ -36,7 +36,6 @@
 #include <cstdlib>
 #include <exception>
 #include <fstream>
-#include <limits>
 #include <memory>
 #include <random>
 #include <string>
@@ -49,7 +48,6 @@
 #include "GameState.h"
 #include "Network.h"
 #include "SGFTree.h"
-#include "SMP.h"
 #include "Training.h"
 #include "UCTSearch.h"
 #include "Utils.h"
@@ -57,6 +55,7 @@
 using namespace Utils;
 
 // Configuration flags
+
 bool cfg_gtp_mode;
 bool cfg_allow_pondering;
 unsigned int cfg_num_threads;
@@ -66,15 +65,15 @@ int cfg_max_visits;
 size_t cfg_max_memory;
 size_t cfg_max_tree_size;
 int cfg_max_cache_ratio_percent;
-TimeManagement::enabled_t cfg_timemanage;
+TimeManagement::enabled_t cfg_time_manage;
 int cfg_lag_buffer_cs;
-int cfg_resignpct;
+int cfg_resign_pct;
 int cfg_noise;
 int cfg_random_cnt;
 int cfg_random_min_visits;
 float cfg_random_temp;
 std::uint64_t cfg_rng_seed;
-bool cfg_dumbpass;
+bool cfg_dumb_pass;
 #ifdef USE_OPENCL
 std::vector<int> cfg_gpus;
 bool cfg_sgemm_exhaustive;
@@ -84,14 +83,14 @@ precision_t cfg_precision;
 #endif
 #endif
 float cfg_puct;
-float cfg_logpuct;
-float cfg_logconst;
+float cfg_log_puct;
+float cfg_log_const;
 float cfg_softmax_temp;
 float cfg_fpu_reduction;
 float cfg_fpu_root_reduction;
 float cfg_ci_alpha;
 float cfg_lcb_min_visit_ratio;
-std::string cfg_weightsfile;
+std::string cfg_weights_file;
 std::string cfg_logfile;
 FILE* cfg_logfile_handle;
 bool cfg_quiet;
@@ -101,236 +100,268 @@ bool cfg_cpu_only;
 AnalyzeTags cfg_analyze_tags;
 
 /* Parses tags for the lz-analyze GTP command and friends */
-AnalyzeTags::AnalyzeTags(std::istringstream& cmdstream, const GameState& game) {
+AnalyzeTags::AnalyzeTags(std::istringstream& command_stream, const GameState& game)
+{
     std::string tag;
 
-    /* Default color is the current one */
+    // Default color is the current one
     m_who = game.board.get_to_move();
 
     auto avoid_not_pass_resign_b = false, avoid_not_pass_resign_w = false;
     auto allow_b = false, allow_w = false;
 
-    while (true) {
-        cmdstream >> std::ws;
-        if (isdigit(cmdstream.peek())) {
+    while (true) 
+	{
+        command_stream >> std::ws;
+        if (isdigit(command_stream.peek())) 
+		{
             tag = "interval";
-        } else {
-            cmdstream >> tag;
-            if (cmdstream.fail() && cmdstream.eof()) {
-                /* Parsing complete */
+        }
+    	else 
+		{
+            command_stream >> tag;
+            if (command_stream.fail() && command_stream.eof()) 
+			{
+                // Parsing complete
                 m_invalid = false;
                 return;
             }
         }
 
-        if (tag == "avoid" || tag == "allow") {
-            std::string textcolor, textmoves;
+        if (tag == "avoid" || tag == "allow") 
+		{
+            std::string text_color, text_moves;
             size_t until_movenum;
-            cmdstream >> textcolor;
-            cmdstream >> textmoves;
-            cmdstream >> until_movenum;
-            if (cmdstream.fail()) {
+            command_stream >> text_color;
+            command_stream >> text_moves;
+            command_stream >> until_movenum;
+        	
+            if (command_stream.fail())
                 return;
-            }
 
             std::vector<int> moves;
-            std::istringstream movestream(textmoves);
-            while (!movestream.eof()) {
+            std::istringstream move_stream(text_moves);
+        	
+            while (!move_stream.eof())
+			{
                 std::string textmove;
-                getline(movestream, textmove, ',');
-                auto sepidx = textmove.find_first_of(':');
-                if (sepidx != std::string::npos) {
-                    if (!(sepidx == 2 || sepidx == 3)) {
+                getline(move_stream, textmove, ',');
+            	
+                auto sep_idx = textmove.find_first_of(':');
+                if (sep_idx != std::string::npos) 
+				{
+                    if (!(sep_idx == 2 || sep_idx == 3)) 
+					{
                         moves.clear();
                         break;
                     }
-                    auto move1_compressed = game.board.text_to_move(
-                        textmove.substr(0, sepidx)
-                    );
-                    auto move2_compressed = game.board.text_to_move(
-                        textmove.substr(sepidx + 1)
-                    );
-                    if (move1_compressed == FastBoard::NO_VERTEX ||
-                        move1_compressed == FastBoard::PASS ||
-                        move1_compressed == FastBoard::RESIGN ||
-                        move2_compressed == FastBoard::NO_VERTEX ||
-                        move2_compressed == FastBoard::PASS ||
-                        move2_compressed == FastBoard::RESIGN)
+                    auto move1_compressed = game.board.text_to_move(textmove.substr(0, sep_idx));
+                    auto move2_compressed = game.board.text_to_move(textmove.substr(sep_idx + 1));
+                	
+                    if (move1_compressed == FastBoard::NO_VERTEX || move1_compressed == FastBoard::PASS || move1_compressed == FastBoard::RESIGN || move2_compressed == FastBoard::NO_VERTEX || move2_compressed == FastBoard::PASS || move2_compressed == FastBoard::RESIGN)
                     {
                         moves.clear();
                         break;
                     }
+                	
                     auto move1_xy = game.board.get_xy(move1_compressed);
                     auto move2_xy = game.board.get_xy(move2_compressed);
-                    auto xmin = std::min(move1_xy.first, move2_xy.first);
-                    auto xmax = std::max(move1_xy.first, move2_xy.first);
-                    auto ymin = std::min(move1_xy.second, move2_xy.second);
-                    auto ymax = std::max(move1_xy.second, move2_xy.second);
-                    for (auto move_x = xmin; move_x <= xmax; move_x++) {
-                        for (auto move_y = ymin; move_y <= ymax; move_y++) {
+                    auto x_min = std::min(move1_xy.first, move2_xy.first);
+                    auto x_max = std::max(move1_xy.first, move2_xy.first);
+                    auto y_min = std::min(move1_xy.second, move2_xy.second);
+                    auto y_max = std::max(move1_xy.second, move2_xy.second);
+                    for (auto move_x = x_min; move_x <= x_max; move_x++) 
+					{
+                        for (auto move_y = y_min; move_y <= y_max; move_y++)
                             moves.push_back(game.board.get_vertex(move_x,move_y));
-                        }
                     }
-                } else {
+                }
+            	else
+				{
                     auto move = game.board.text_to_move(textmove);
-                    if (move == FastBoard::NO_VERTEX) {
+                    if (move == FastBoard::NO_VERTEX) 
+					{
                         moves.clear();
                         break;
                     }
                     moves.push_back(move);
                 }
             }
-            if (moves.empty()) {
+        	
+            if (moves.empty())
                 return;
-            }
 
             int color;
-            if (textcolor == "w" || textcolor == "white") {
+            if (text_color == "w" || text_color == "white") 
                 color = FastBoard::WHITE;
-            } else if (textcolor == "b" || textcolor == "black") {
+        	else if (text_color == "b" || text_color == "black")
                 color = FastBoard::BLACK;
-            } else {
+        	else
                 return;
-            }
 
-            if (until_movenum < 1) {
+            if (until_movenum < 1)
                 return;
-            }
+        	
             until_movenum += game.get_move_number() - 1;
 
-            for (const auto& move : moves) {
-                if (tag == "avoid") {
+            for (const auto& move : moves) 
+			{
+                if (tag == "avoid") 
+				{
                     add_move_to_avoid(color, move, until_movenum);
-                    if (move != FastBoard::PASS && move != FastBoard::RESIGN) {
-                        if (color == FastBoard::BLACK) {
+                    if (move != FastBoard::PASS && move != FastBoard::RESIGN) 
+					{
+                        if (color == FastBoard::BLACK)
                             avoid_not_pass_resign_b = true;
-                        } else {
+                        else
                             avoid_not_pass_resign_w = true;
-                        }
-                    }
-                } else {
-                    add_move_to_allow(color, move, until_movenum);
-                    if (color == FastBoard::BLACK) {
-                        allow_b = true;
-                    } else {
-                        allow_w = true;
                     }
                 }
+            	else
+				{
+                    add_move_to_allow(color, move, until_movenum);
+                    if (color == FastBoard::BLACK)
+                        allow_b = true;
+                    else
+                        allow_w = true;
+                }
             }
-            if ((allow_b && avoid_not_pass_resign_b) ||
-                (allow_w && avoid_not_pass_resign_w)) {
-                /* If "allow" is in use, it is illegal to use "avoid" with any
-                 * move that is not "pass" or "resign". */
+
+			// If "allow" is in use, it is illegal to use "avoid" with any move that is not "pass" or "resign".
+            if ((allow_b && avoid_not_pass_resign_b) || (allow_w && avoid_not_pass_resign_w)) 
                 return;
-            }
-        } else if (tag == "w" || tag == "white") {
+        }
+		else if (tag == "w" || tag == "white") 
+		{
             m_who = FastBoard::WHITE;
-        } else if (tag == "b" || tag == "black") {
+        }
+    	else if (tag == "b" || tag == "black")
+		{
             m_who = FastBoard::BLACK;
-        } else if (tag == "interval") {
-            cmdstream >> m_interval_centis;
-            if (cmdstream.fail()) {
+        }
+    	else if (tag == "interval") 
+		{
+            command_stream >> m_interval_centiseconds;
+            if (command_stream.fail())
                 return;
-            }
-        } else if (tag == "minmoves") {
-            cmdstream >> m_min_moves;
-            if (cmdstream.fail()) {
+        }
+    	else if (tag == "minmoves") 
+		{
+            command_stream >> m_min_moves;
+            if (command_stream.fail())
                 return;
-            }
-        } else {
+        }
+    	else 
+		{
             return;
         }
     }
 }
 
-void AnalyzeTags::add_move_to_avoid(int color, int vertex, size_t until_move) {
+void AnalyzeTags::add_move_to_avoid(int color, int vertex, size_t until_move)
+{
     m_moves_to_avoid.emplace_back(color, until_move, vertex);
 }
 
-void AnalyzeTags::add_move_to_allow(int color, int vertex, size_t until_move) {
+void AnalyzeTags::add_move_to_allow(int color, int vertex, size_t until_move)
+{
     m_moves_to_allow.emplace_back(color, until_move, vertex);
 }
 
-int AnalyzeTags::interval_centis() const {
-    return m_interval_centis;
+int AnalyzeTags::interval_centiseconds() const
+{
+    return m_interval_centiseconds;
 }
 
-int AnalyzeTags::invalid() const {
+int AnalyzeTags::invalid() const
+{
     return m_invalid;
 }
 
-int AnalyzeTags::who() const {
+int AnalyzeTags::who() const
+{
     return m_who;
 }
 
-size_t AnalyzeTags::post_move_count() const {
+size_t AnalyzeTags::post_move_count() const
+{
     return m_min_moves;
 }
 
-bool AnalyzeTags::is_to_avoid(int color, int vertex, size_t movenum) const {
-    for (auto& move : m_moves_to_avoid) {
-        if (color == move.color && vertex == move.vertex && movenum <= move.until_move) {
+bool AnalyzeTags::is_to_avoid(const int color, const int vertex, const size_t movenum) const
+{
+    for (auto& move : m_moves_to_avoid) 
+	{
+        if (color == move.color && vertex == move.vertex && movenum <= move.until_move)
             return true;
-        }
     }
-    if (vertex != FastBoard::PASS && vertex != FastBoard::RESIGN) {
+	
+    if (vertex != FastBoard::PASS && vertex != FastBoard::RESIGN)
+	{
         auto active_allow = false;
-        for (auto& move : m_moves_to_allow) {
-            if (color == move.color && movenum <= move.until_move) {
+        for (auto& move : m_moves_to_allow)
+		{
+            if (color == move.color && movenum <= move.until_move) 
+			{
                 active_allow = true;
-                if (vertex == move.vertex) {
+                if (vertex == move.vertex)
                     return false;
-                }
             }
         }
-        if (active_allow) {
+    	
+        if (active_allow)
             return true;
-        }
     }
+	
     return false;
 }
 
-bool AnalyzeTags::has_move_restrictions() const {
+bool AnalyzeTags::has_move_restrictions() const
+{
     return !m_moves_to_avoid.empty() || !m_moves_to_allow.empty();
 }
 
 std::unique_ptr<Network> GTP::s_network;
 
-void GTP::initialize(std::unique_ptr<Network>&& net) {
-    s_network = std::move(net);
+void GTP::initialize(std::unique_ptr<Network>&& network)
+{
+    s_network = std::move(network);
 
     bool result;
     std::string message;
-    std::tie(result, message) =
-        set_max_memory(cfg_max_memory, cfg_max_cache_ratio_percent);
-    if (!result) {
+    std::tie(result, message) = set_max_memory(cfg_max_memory, cfg_max_cache_ratio_percent);
+	
+    if (!result) 
+	{
         // This should only ever happen with 60 block networks on 32bit machine.
         myprintf("LOW MEMORY SETTINGS! Couldn't set default memory limits.\n");
         myprintf("The network you are using might be too big\n");
         myprintf("for the default settings on your system.\n");
         throw std::runtime_error("Error setting memory requirements.");
     }
+	
     myprintf("%s\n", message.c_str());
 }
 
-void GTP::setup_default_parameters() {
+void GTP::setup_default_parameters()
+{
     cfg_gtp_mode = false;
     cfg_allow_pondering = true;
 
-    // we will re-calculate this on Leela.cpp
+    // We will re-calculate this on Leela.cpp
     cfg_num_threads = 1;
-    // we will re-calculate this on Leela.cpp
+    // We will re-calculate this on Leela.cpp
     cfg_batch_size = 1;
 
     cfg_max_memory = UCTSearch::DEFAULT_MAX_MEMORY;
     cfg_max_playouts = UCTSearch::UNLIMITED_PLAYOUTS;
     cfg_max_visits = UCTSearch::UNLIMITED_PLAYOUTS;
-    // This will be overwriiten in initialize() after network size is known.
+    // This will be overwritten in initialize() after network size is known.
     cfg_max_tree_size = UCTSearch::DEFAULT_MAX_MEMORY;
     cfg_max_cache_ratio_percent = 10;
-    cfg_timemanage = TimeManagement::AUTO;
+    cfg_time_manage = TimeManagement::AUTO;
     cfg_lag_buffer_cs = 100;
-    cfg_weightsfile = leelaz_file("best-network");
+    cfg_weights_file = leelaz_file("best-network");
 #ifdef USE_OPENCL
     cfg_gpus = { };
     cfg_sgemm_exhaustive = false;
@@ -341,13 +372,13 @@ void GTP::setup_default_parameters() {
 #endif
 #endif
     cfg_puct = 1.5f;
-    cfg_logpuct = 0.015f;
-    cfg_logconst = 1.7f;
+    cfg_log_puct = 0.015f;
+    cfg_log_const = 1.7f;
     cfg_softmax_temp = 1.0f;
     // Set cfg_fpu_reduction to the absolute of a bad score, just tentative for now
     cfg_fpu_reduction = 10.0f;
-    // see UCTSearch::should_resign
-    cfg_resignpct = -1;
+    // See UCTSearch::should_resign
+    cfg_resign_pct = -1;
     cfg_noise = false;
     cfg_fpu_root_reduction = cfg_fpu_reduction;
     cfg_ci_alpha = 1e-5f;
@@ -355,7 +386,7 @@ void GTP::setup_default_parameters() {
     cfg_random_cnt = 0;
     cfg_random_min_visits = 1;
     cfg_random_temp = 1.0f;
-    cfg_dumbpass = false;
+    cfg_dumb_pass = false;
     cfg_logfile_handle = nullptr;
     cfg_quiet = false;
     cfg_benchmark = false;
@@ -372,10 +403,9 @@ void GTP::setup_default_parameters() {
     // helps when it *is* high quality (Linux, MSVC).
     std::random_device rd;
     std::ranlux48 gen(rd());
-    std::uint64_t seed1 = (gen() << 16) ^ gen();
+    const auto seed1 = (gen() << 16) ^ gen();
     // If the above fails, this is one of our best, portable, bets.
-    std::uint64_t seed2 = std::chrono::high_resolution_clock::
-        now().time_since_epoch().count();
+    const std::uint64_t seed2 = std::chrono::high_resolution_clock::now().time_since_epoch().count();
     cfg_rng_seed = seed1 ^ seed2;
 }
 
@@ -417,8 +447,7 @@ const std::string GTP::s_commands[] = {
     ""
 };
 
-// Default/min/max could be moved into separate fields,
-// but for now we assume that the GUI will not send us invalid info.
+// Default/min/max could be moved into separate fields, but for now we assume that the GUI will not send us invalid info.
 const std::string GTP::s_options[] = {
     "option name Maximum Memory Use (MiB) type spin default 2048 min 128 max 131072",
     "option name Percentage of memory for cache type spin default 10 min 1 max 99",
@@ -430,113 +459,138 @@ const std::string GTP::s_options[] = {
     ""
 };
 
-std::string GTP::get_life_list(const GameState & game, bool live) {
-    std::vector<std::string> stringlist;
+std::string GTP::get_life_list(const GameState & game, const bool live)
+{
+    std::vector<std::string> string_list;
     std::string result;
     const auto& board = game.board;
 
-    if (live) {
-        for (int i = 0; i < board.get_board_size(); i++) {
-            for (int j = 0; j < board.get_board_size(); j++) {
-                int vertex = board.get_vertex(i, j);
+    if (live)
+	{
+        for (auto i = 0; i < board.get_board_size(); i++) 
+		{
+            for (auto j = 0; j < board.get_board_size(); j++) 
+			{
+				const auto vertex = board.get_vertex(i, j);
 
-                if (board.get_state(vertex) != FastBoard::EMPTY) {
-                    stringlist.push_back(board.get_string(vertex));
-                }
+                if (board.get_state(vertex) != FastBoard::EMPTY)
+                    string_list.push_back(board.get_string(vertex));
             }
         }
     }
 
-    // remove multiple mentions of the same string
-    // unique reorders and returns new iterator, erase actually deletes
-    std::sort(begin(stringlist), end(stringlist));
-    stringlist.erase(std::unique(begin(stringlist), end(stringlist)),
-                     end(stringlist));
+    // Remove multiple mentions of the same string unique reorders and returns new iterator, erase actually deletes
+    std::sort(begin(string_list), end(string_list));
+    string_list.erase(std::unique(begin(string_list), end(string_list)), end(string_list));
 
-    for (size_t i = 0; i < stringlist.size(); i++) {
-        result += (i == 0 ? "" : "\n") + stringlist[i];
-    }
+    for (size_t i = 0; i < string_list.size(); i++)
+        result += (i == 0 ? "" : "\n") + string_list[i];
 
     return result;
 }
 
-void GTP::execute(GameState & game, const std::string& xinput) {
+void GTP::execute(GameState & game, const std::string& x_input)
+{
     std::string input;
     static auto search = std::make_unique<UCTSearch>(game, *s_network);
 
-    bool transform_lowercase = true;
+    auto transform_lowercase = true;
 
-    // Required on Unixy systems
-    if (xinput.find("loadsgf") != std::string::npos) {
+    // Required on Unix systems
+    if (x_input.find("loadsgf") != std::string::npos)
         transform_lowercase = false;
-    }
 
-    /* eat empty lines, simple preprocessing, lower case */
-    for (unsigned int tmp = 0; tmp < xinput.size(); tmp++) {
-        if (xinput[tmp] == 9) {
+    // Eat empty lines, simple preprocessing, lower case
+    for (unsigned int tmp = 0; tmp < x_input.size(); tmp++) 
+	{
+        if (x_input[tmp] == 9) 
+		{
             input += " ";
-        } else if ((xinput[tmp] > 0 && xinput[tmp] <= 9)
-                || (xinput[tmp] >= 11 && xinput[tmp] <= 31)
-                || xinput[tmp] == 127) {
+        }
+    	else if ((x_input[tmp] > 0 && x_input[tmp] <= 9) || (x_input[tmp] >= 11 && x_input[tmp] <= 31) || x_input[tmp] == 127) 
+		{
                continue;
-        } else {
-            if (transform_lowercase) {
-                input += std::tolower(xinput[tmp]);
-            } else {
-                input += xinput[tmp];
-            }
+        }
+    	else 
+		{
+            if (transform_lowercase)
+                input += static_cast<char>(std::tolower(x_input[tmp]));
+            else
+                input += x_input[tmp];
         }
 
-        // eat multi whitespace
-        if (input.size() > 1) {
-            if (std::isspace(input[input.size() - 2]) &&
-                std::isspace(input[input.size() - 1])) {
-                input.resize(input.size() - 1);
-            }
+        // Eat multi whitespace
+        if (input.size() > 1) 
+		{
+            if (std::isspace(input[input.size() - 2]) && std::isspace(input[input.size() - 1]))
+            	input.resize(input.size() - 1);
         }
     }
 
     std::string command;
-    int id = -1;
+    auto id = -1;
 
-    if (input == "") {
+    if (input.empty()) 
         return;
-    } else if (input == "exit") {
+
+	if (input == "exit") 
         exit(EXIT_SUCCESS);
-    } else if (input.find("#") == 0) {
+
+	if (input.find('#') == 0) 
         return;
-    } else if (std::isdigit(input[0])) {
+	
+	if (std::isdigit(input[0])) 
+	{
         std::istringstream strm(input);
         char spacer;
         strm >> id;
         strm >> std::noskipws >> spacer;
         std::getline(strm, command);
-    } else {
+    }
+	else
+	{
         command = input;
     }
 
-    /* process commands */
-    if (command == "protocol_version") {
+    // Process commands
+	
+    if (command == "protocol_version") 
+	{
         gtp_printf(id, "%d", GTP_VERSION);
         return;
-    } else if (command == "name") {
+    }
+	
+	if (command == "name") 
+	{
         gtp_printf(id, PROGRAM_NAME);
         return;
-    } else if (command == "version") {
+    }
+
+	if (command == "version") 
+	{
         gtp_printf(id, PROGRAM_VERSION);
         return;
-    } else if (command == "quit") {
+    }
+
+	if (command == "quit") 
+	{
         gtp_printf(id, "");
         exit(EXIT_SUCCESS);
-    } else if (command.find("known_command") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("known_command") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
 
-        cmdstream >> tmp;     /* remove known_command */
-        cmdstream >> tmp;
+		// Remove known command
+        command_stream >> tmp; 
+        command_stream >> tmp;
 
-        for (int i = 0; s_commands[i].size() > 0; i++) {
-            if (tmp == s_commands[i]) {
+        for (auto i = 0; !s_commands[i].empty(); i++) 
+		{
+            if (tmp == s_commands[i]) 
+			{
                 gtp_printf(id, "true");
                 return;
             }
@@ -544,357 +598,502 @@ void GTP::execute(GameState & game, const std::string& xinput) {
 
         gtp_printf(id, "false");
         return;
-    } else if (command.find("list_commands") == 0) {
-        std::string outtmp(s_commands[0]);
-        for (int i = 1; s_commands[i].size() > 0; i++) {
-            outtmp = outtmp + "\n" + s_commands[i];
-        }
-        gtp_printf(id, outtmp.c_str());
+		
+    }
+
+	if (command.find("list_commands") == 0) 
+	{
+		auto out_tmp(s_commands[0]);
+		
+        for (auto i = 1; !s_commands[i].empty(); i++) 
+            out_tmp += "\n" + s_commands[i];
+
+
+        gtp_printf(id, out_tmp.c_str());
         return;
-    } else if (command.find("boardsize") == 0) {
-        std::istringstream cmdstream(command);
-        std::string stmp;
+    }
+
+    if (command.find("boardsize") == 0) 
+	{
+        std::istringstream command_stream(command);
+        std::string str_tmp;
         int tmp;
 
-        cmdstream >> stmp;  // eat boardsize
-        cmdstream >> tmp;
+    	// Eat board size
+        command_stream >> str_tmp; 
+        command_stream >> tmp;
 
-        if (!cmdstream.fail()) {
-            if (tmp != BOARD_SIZE) {
+        if (!command_stream.fail()) 
+		{
+            if (tmp != BOARD_SIZE) 
+			{
                 gtp_fail_printf(id, "unacceptable size");
-            } else {
-                float old_komi = game.get_komi();
+            }
+        	else 
+			{
+				auto old_komi = game.get_komi();
                 Training::clear_training();
                 game.init_game(tmp, old_komi);
                 gtp_printf(id, "");
             }
-        } else {
+        }
+    	else
+		{
             gtp_fail_printf(id, "syntax not understood: boardsize");
         }
 
         return;
-    } else if (command.find("clear_board") == 0) {
+    }
+
+	if (command.find("clear_board") == 0)
+	{
         Training::clear_training();
         game.reset_game();
         search = std::make_unique<UCTSearch>(game, *s_network);
         assert(UCTNodePointer::get_tree_size() == 0);
         gtp_printf(id, "");
         return;
-    } else if (command.find("komi") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("komi") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
-        float komi = KOMI;
-        float old_komi = game.get_komi();
+        auto komi = KOMI;
+        auto old_komi = game.get_komi();
 
-        cmdstream >> tmp;  // eat komi
-        cmdstream >> komi;
+		// Eat komi
+        command_stream >> tmp;
+        command_stream >> komi;
 
-        if (!cmdstream.fail()) {
-            if (komi != old_komi) {
+        if (!command_stream.fail()) 
+		{
+            if (komi != old_komi)
                 game.set_komi(komi);
-            }
+        	
             gtp_printf(id, "");
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "syntax not understood: clear_board");
         }
 
         return;
-    } else if (command.find("play") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("play") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
         std::string color, vertex;
 
-        cmdstream >> tmp;   //eat play
-        cmdstream >> color;
-        cmdstream >> vertex;
+		// Eat play
+        command_stream >> tmp;
+        command_stream >> color;
+        command_stream >> vertex;
 
-        if (!cmdstream.fail()) {
-            if (!game.play_text(color, vertex)) {
+        if (!command_stream.fail()) 
+		{
+            if (!game.play_text(color, vertex)) 
+			{
                 gtp_fail_printf(id, "illegal move");
                 gtp_fail_printf(id, "illegal move");
-            } else {
+            }
+        	else 
+			{
                 gtp_printf(id, "");
             }
-        } else {
+        }
+		else
+		{
             gtp_fail_printf(id, "syntax not understood: play");
         }
         return;
-    } else if (command.find("genmove") == 0
-               || command.find("lz-genmove_analyze") == 0) {
+    }
+	if (command.find("genmove") == 0 || command.find("lz-genmove_analyze") == 0) 
+	{
         auto analysis_output = command.find("lz-genmove_analyze") == 0;
 
-        std::istringstream cmdstream(command);
+        std::istringstream command_stream(command);
         std::string tmp;
-        cmdstream >> tmp;  // eat genmove
+
+		// Eat genmove
+        command_stream >> tmp;
 
         int who;
         AnalyzeTags tags;
 
-        if (analysis_output) {
-            tags = AnalyzeTags{cmdstream, game};
-            if (tags.invalid()) {
+        if (analysis_output) 
+		{
+            tags = AnalyzeTags{command_stream, game};
+            if (tags.invalid()) 
+			{
                 gtp_fail_printf(id, "cannot parse analyze tags");
                 return;
             }
             who = tags.who();
-        } else {
-            /* genmove command */
-            cmdstream >> tmp;
-            if (tmp == "w" || tmp == "white") {
+        }
+		else 
+		{
+            // Genmove command
+            command_stream >> tmp;
+            if (tmp == "w" || tmp == "white") 
+			{
                 who = FastBoard::WHITE;
-            } else if (tmp == "b" || tmp == "black") {
+            }
+			else if (tmp == "b" || tmp == "black") 
+			{
                 who = FastBoard::BLACK;
-            } else {
+            }
+			else 
+			{
                 gtp_fail_printf(id, "syntax error");
                 return;
             }
         }
 
-        if (analysis_output) {
+        if (analysis_output) 
+		{
             // Start of multi-line response
             cfg_analyze_tags = tags;
             if (id != -1) gtp_printf_raw("=%d\n", id);
             else gtp_printf_raw("=\n");
         }
-        // start thinking
-        {
+        // Start thinking
+        //{
             game.set_to_move(who);
             // Outputs score and pvs for lz-genmove_analyze
-            int move = search->think(who);
+            auto move = search->think(who);
             game.play_move(move);
 
-            std::string vertex = game.move_to_text(move);
-            if (!analysis_output) {
+            auto vertex = game.move_to_text(move);
+            if (!analysis_output) 
+			{
                 gtp_printf(id, "%s", vertex.c_str());
-            } else {
+            }
+        	else 
+			{
                 gtp_printf_raw("play %s\n", vertex.c_str());
             }
-        }
+        //}
 
-        if (cfg_allow_pondering) {
-            // now start pondering
-            if (!game.has_resigned()) {
-                // Outputs score and pvs through gtp for lz-genmove_analyze
+        if (cfg_allow_pondering) 
+		{
+            // Now start pondering
+			// Outputs score and pvs through gtp for lz-genmove_analyze
+            if (!game.has_resigned()) 
                 search->ponder();
-            }
         }
-        if (analysis_output) {
-            // Terminate multi-line response
+		
+		// Terminate multi-line response
+        if (analysis_output) 
             gtp_printf_raw("\n");
-        }
+		
         cfg_analyze_tags = {};
         return;
-    } else if (command.find("lz-analyze") == 0) {
-        std::istringstream cmdstream(command);
+		
+    }
+	if (command.find("lz-analyze") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
-
-        cmdstream >> tmp; // eat lz-analyze
-        AnalyzeTags tags{cmdstream, game};
-        if (tags.invalid()) {
+		
+		// Eat lz-analyze
+        command_stream >> tmp;
+        AnalyzeTags tags{command_stream, game};
+		
+        if (tags.invalid()) 
+		{
             gtp_fail_printf(id, "cannot parse analyze tags");
             return;
         }
+		
         // Start multi-line response.
-        if (id != -1) gtp_printf_raw("=%d\n", id);
+        if (id != -1) 
+			gtp_printf_raw("=%d\n", id);
+		
         else gtp_printf_raw("=\n");
-        // Now start pondering.
-        if (!game.has_resigned()) {
+
+		// Now start pondering.
+        if (!game.has_resigned()) 
+		{
             cfg_analyze_tags = tags;
+        	
             // Outputs score and pvs through gtp
             game.set_to_move(tags.who());
             search->ponder();
         }
+		
         cfg_analyze_tags = {};
+		
         // Terminate multi-line response
         gtp_printf_raw("\n");
         return;
-    } else if (command.find("kgs-genmove_cleanup") == 0) {
-        std::istringstream cmdstream(command);
+    }
+	if (command.find("kgs-genmove_cleanup") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
 
-        cmdstream >> tmp;  // eat kgs-genmove
-        cmdstream >> tmp;
+		// Eat kgs-genmove
+        command_stream >> tmp;
+        command_stream >> tmp;
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail()) 
+		{
             int who;
-            if (tmp == "w" || tmp == "white") {
+            if (tmp == "w" || tmp == "white") 
+			{
                 who = FastBoard::WHITE;
-            } else if (tmp == "b" || tmp == "black") {
+            }
+        	else if (tmp == "b" || tmp == "black") 
+			{
                 who = FastBoard::BLACK;
-            } else {
+            }
+        	else 
+			{
                 gtp_fail_printf(id, "syntax error");
                 return;
             }
+        	
             game.set_passes(0);
             {
                 game.set_to_move(who);
-                int move = search->think(who, UCTSearch::NOPASS);
+                auto move = search->think(who, UCTSearch::NOPASS);
                 game.play_move(move);
 
-                std::string vertex = game.move_to_text(move);
+                auto vertex = game.move_to_text(move);
                 gtp_printf(id, "%s", vertex.c_str());
             }
-            if (cfg_allow_pondering) {
-                // now start pondering
-                if (!game.has_resigned()) {
+
+        	if (cfg_allow_pondering)
+			{
+                // Now start pondering
+                if (!game.has_resigned())
                     search->ponder();
-                }
             }
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "syntax not understood: kgs_genmove_cleanup");
         }
         return;
-    } else if (command.find("undo") == 0) {
-        if (game.undo_move()) {
+    }
+	
+	if (command.find("undo") == 0) 
+	{
+        if (game.undo_move()) 
+		{
             gtp_printf(id, "");
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "cannot undo");
         }
         return;
-    } else if (command.find("showboard") == 0) {
+    }
+
+	if (command.find("showboard") == 0) 
+	{
         gtp_printf(id, "");
         game.display_state();
         return;
-    } else if (command.find("final_score") == 0) {
-        float ftmp = game.final_score();
-        /* white wins */
-        if (ftmp < -0.1) {
-            gtp_printf(id, "W+%3.1f", float(fabs(ftmp)));
-        } else if (ftmp > 0.1) {
-            gtp_printf(id, "B+%3.1f", ftmp);
-        } else {
+    }
+
+	if (command.find("final_score") == 0) 
+	{
+		auto float_tmp = game.final_score();
+		
+        // White wins
+        if (float_tmp < -0.1) 
+		{
+            gtp_printf(id, "W+%3.1f", float(fabs(float_tmp)));
+        }
+		// Black wins
+		else if (float_tmp > 0.1) 
+		{
+            gtp_printf(id, "B+%3.1f", float_tmp);
+        }
+		else 
+		{
             gtp_printf(id, "0");
         }
         return;
-    } else if (command.find("final_status_list") == 0) {
-        if (command.find("alive") != std::string::npos) {
-            std::string livelist = get_life_list(game, true);
-            gtp_printf(id, livelist.c_str());
-        } else if (command.find("dead") != std::string::npos) {
-            std::string deadlist = get_life_list(game, false);
-            gtp_printf(id, deadlist.c_str());
-        } else {
+    }
+	
+	if (command.find("final_status_list") == 0) 
+	{
+        if (command.find("alive") != std::string::npos) 
+		{
+			auto live_list = get_life_list(game, true);
+            gtp_printf(id, live_list.c_str());
+        }
+		else if (command.find("dead") != std::string::npos) 
+		{
+	        auto dead_list = get_life_list(game, false);
+            gtp_printf(id, dead_list.c_str());
+        }
+		else 
+		{
             gtp_printf(id, "");
         }
         return;
-    } else if (command.find("time_settings") == 0) {
-        std::istringstream cmdstream(command);
+		
+    }
+	
+	if (command.find("time_settings") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
         int maintime, byotime, byostones;
 
-        cmdstream >> tmp >> maintime >> byotime >> byostones;
+        command_stream >> tmp >> maintime >> byotime >> byostones;
 
-        if (!cmdstream.fail()) {
-            // convert to centiseconds and set
+        if (!command_stream.fail()) 
+		{
+            // Convert to centiseconds and set
             game.set_time_control(maintime * 100, byotime * 100, byostones, 0);
-
             gtp_printf(id, "");
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "syntax not understood: time_settings");
         }
         return;
-    } else if (command.find("time_left") == 0) {
-        std::istringstream cmdstream(command);
+    }
+	
+    if (command.find("time_left") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp, color;
         int time, stones;
 
-        cmdstream >> tmp >> color >> time >> stones;
+        command_stream >> tmp >> color >> time >> stones;
 
-        if (!cmdstream.fail()) {
-            int icolor;
+        if (!command_stream.fail()) 
+		{
+            int int_color;
 
-            if (color == "w" || color == "white") {
-                icolor = FastBoard::WHITE;
-            } else if (color == "b" || color == "black") {
-                icolor = FastBoard::BLACK;
-            } else {
+            if (color == "w" || color == "white") 
+			{
+                int_color = FastBoard::WHITE;
+            }
+        	else if (color == "b" || color == "black") 
+			{
+                int_color = FastBoard::BLACK;
+            }
+        	else 
+			{
                 gtp_fail_printf(id, "Color in time adjust not understood.\n");
                 return;
             }
 
-            game.adjust_time(icolor, time * 100, stones);
+            game.adjust_time(int_color, time * 100, stones);
 
             gtp_printf(id, "");
 
-            if (cfg_allow_pondering) {
+            if (cfg_allow_pondering) 
+			{
                 // KGS sends this after our move
-                // now start pondering
-                if (!game.has_resigned()) {
+                // Now start pondering
+                if (!game.has_resigned())
                     search->ponder();
-                }
             }
-        } else {
+        }
+    	else 
+		{
             gtp_fail_printf(id, "syntax not understood: time_left");
         }
         return;
-    } else if (command.find("auto") == 0) {
-        do {
-            int move = search->think(game.get_to_move(), UCTSearch::NORMAL);
+    }
+	
+	if (command.find("auto") == 0) 
+	{
+        do 
+		{
+	        auto move = search->think(game.get_to_move(), UCTSearch::NORMAL);
             game.play_move(move);
             game.display_state();
 
         } while (game.get_passes() < 2 && !game.has_resigned());
 
         return;
-    } else if (command.find("go") == 0 && command.size() < 6) {
-        int move = search->think(game.get_to_move());
+    }
+	
+	if (command.find("go") == 0 && command.size() < 6) 
+	{
+		auto move = search->think(game.get_to_move());
         game.play_move(move);
 
-        std::string vertex = game.move_to_text(move);
+		auto vertex = game.move_to_text(move);
         myprintf("%s\n", vertex.c_str());
         return;
-    } else if (command.find("heatmap") == 0) {
-        std::istringstream cmdstream(command);
+    }
+	
+	if (command.find("heatmap") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
         std::string symmetry;
 
-        cmdstream >> tmp;   // eat heatmap
-        cmdstream >> symmetry;
+		// Eat heatmap
+        command_stream >> tmp;
+        command_stream >> symmetry;
 
-        Network::Netresult vec;
-        if (cmdstream.fail()) {
+        Network::netresult vec;
+        if (command_stream.fail())
+		{
             // Default = DIRECT with no symmetric change
-            vec = s_network->get_output(
-                &game, Network::Ensemble::DIRECT,
-                Network::IDENTITY_SYMMETRY, false);
-        } else if (symmetry == "all") {
-            for (auto s = 0; s < Network::NUM_SYMMETRIES; ++s) {
-                vec = s_network->get_output(
-                    &game, Network::Ensemble::DIRECT, s, false);
-                Network::show_heatmap(&game, vec, false);
-            }
-        } else if (symmetry == "average" || symmetry == "avg") {
-            vec = s_network->get_output(
-                &game, Network::Ensemble::AVERAGE, -1, false);
-        } else {
-            vec = s_network->get_output(
-                &game, Network::Ensemble::DIRECT, std::stoi(symmetry), false);
+            vec = s_network->get_output(&game, Network::ensemble::DIRECT, Network::IDENTITY_SYMMETRY, false);
+        }
+		else if (symmetry == "all") 
+		{
+            for (auto s = 0; s < Network::NUM_SYMMETRIES; ++s) 
+                vec = s_network->get_output(&game, Network::ensemble::DIRECT, s, false); Network::show_heatmap(&game, vec, false);
+        }
+		else if (symmetry == "average" || symmetry == "avg") 
+		{
+            vec = s_network->get_output( &game, Network::ensemble::AVERAGE, -1, false);
+        }
+		else 
+		{
+            vec = s_network->get_output(&game, Network::ensemble::DIRECT, std::stoi(symmetry), false);
         }
 
-        if (symmetry != "all") {
+        if (symmetry != "all")
             Network::show_heatmap(&game, vec, false);
-        }
 
         gtp_printf(id, "");
         return;
-    } else if (command.find("fixed_handicap") == 0) {
-        std::istringstream cmdstream(command);
+    }
+	
+	if (command.find("fixed_handicap") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
         int stones;
 
-        cmdstream >> tmp;   // eat fixed_handicap
-        cmdstream >> stones;
+		// Eat fixed_handicap
+        command_stream >> tmp;   
+        command_stream >> stones;
 
-        if (!cmdstream.fail() && game.place_fixed_handicap(stones)) {
-            auto stonestring = game.board.get_stone_list();
-            gtp_printf(id, "%s", stonestring.c_str());
-        } else {
+        if (!command_stream.fail() && game.place_fixed_handicap(stones)) 
+		{
+            auto stone_string = game.board.get_stone_list();
+            gtp_printf(id, "%s", stone_string.c_str());
+        }
+		else 
+		{
             gtp_fail_printf(id, "Not a valid number of handicap stones");
         }
         return;
-    } else if (command.find("last_move") == 0) {
+    }
+	
+	if (command.find("last_move") == 0) 
+	{
         auto last_move = game.get_last_move();
-        if (last_move == FastBoard::NO_VERTEX) {
+        if (last_move == FastBoard::NO_VERTEX) 
+		{
             gtp_fail_printf(id, "no previous move known");
             return;
         }
@@ -902,180 +1101,240 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         auto color = game.get_to_move() == FastBoard::WHITE ? "black" : "white";
         gtp_printf(id, "%s %s", color, coordinate.c_str());
         return;
-    } else if (command.find("move_history") == 0) {
-        gtp_printf_raw("=%s %s",
-                       id == -1 ? "" : std::to_string(id).c_str(),
-                       game.get_move_number() == 0 ? "\n" : "");
+    }
+	if (command.find("move_history") == 0) 
+	{
+        gtp_printf_raw("=%s %s", id == -1 ? "" : std::to_string(id).c_str(), game.get_move_number() == 0 ? "\n" : "");
         auto game_history = game.get_game_history();
-        // undone moves may still be present, so reverse the portion of the
-        // array we need and resize to trim it down for iteration.
-        std::reverse(begin(game_history),
-                     begin(game_history) + game.get_move_number() + 1);
-        game_history.resize(game.get_move_number());
-        for (const auto &state : game_history) {
+        // Undone moves may still be present, so reverse the portion of the array we need and resize to trim it down for iteration.
+        std::reverse(begin(game_history), begin(game_history) + game.get_move_number() + 1);
+
+		game_history.resize(game.get_move_number());
+        for (const auto &state : game_history) 
+		{
             auto coordinate = game.move_to_text(state->get_last_move());
             auto color = state->get_to_move() == FastBoard::WHITE ? "black" : "white";
             gtp_printf_raw("%s %s\n", color, coordinate.c_str());
         }
         gtp_printf_raw("\n");
         return;
-    } else if (command.find("clear_cache") == 0) {
-        s_network->nncache_clear();
+    }
+
+	if (command.find("clear_cache") == 0) 
+	{
+        s_network->nn_cache_clear();
         gtp_printf(id, "");
         return;
-    } else if (command.find("place_free_handicap") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("place_free_handicap") == 0) {
+        std::istringstream command_stream(command);
         std::string tmp;
         int stones;
 
-        cmdstream >> tmp;   // eat place_free_handicap
-        cmdstream >> stones;
+		// Eat place_free_handicap
+        command_stream >> tmp;   
+        command_stream >> stones;
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail()) 
+		{
             game.place_free_handicap(stones, *s_network);
-            auto stonestring = game.board.get_stone_list();
-            gtp_printf(id, "%s", stonestring.c_str());
-        } else {
+            auto stone_string = game.board.get_stone_list();
+            gtp_printf(id, "%s", stone_string.c_str());
+        }
+		else 
+		{
             gtp_fail_printf(id, "Not a valid number of handicap stones");
         }
 
         return;
-    } else if (command.find("set_free_handicap") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("set_free_handicap") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
 
-        cmdstream >> tmp;   // eat set_free_handicap
+		// Eat set_free_handicap
+        command_stream >> tmp;   
 
-        do {
+        do 
+		{
             std::string vertex;
 
-            cmdstream >> vertex;
+            command_stream >> vertex;
 
-            if (!cmdstream.fail()) {
-                if (!game.play_text("black", vertex)) {
+            if (!command_stream.fail()) 
+			{
+                if (!game.play_text("black", vertex))
                     gtp_fail_printf(id, "illegal move");
-                } else {
+                else
                     game.set_handicap(game.get_handicap() + 1);
-                }
             }
-        } while (!cmdstream.fail());
+        } while (!command_stream.fail());
 
-        std::string stonestring = game.board.get_stone_list();
-        gtp_printf(id, "%s", stonestring.c_str());
-
+        auto stone_string = game.board.get_stone_list();
+        gtp_printf(id, "%s", stone_string.c_str());
+		
         return;
-    } else if (command.find("loadsgf") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("loadsgf") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp, filename;
         int movenum;
 
-        cmdstream >> tmp;   // eat loadsgf
-        cmdstream >> filename;
+		// Eat loadsgf
+        command_stream >> tmp;  
+        command_stream >> filename;
 
-        if (!cmdstream.fail()) {
-            cmdstream >> movenum;
+        if (!command_stream.fail()) 
+		{
+            command_stream >> movenum;
 
-            if (cmdstream.fail()) {
+            if (command_stream.fail())
                 movenum = 999;
-            }
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "Missing filename.");
             return;
         }
 
-        auto sgftree = std::make_unique<SGFTree>();
+        auto sgf_tree = std::make_unique<SGFTree>();
 
-        try {
-            sgftree->load_from_file(filename);
-            game = sgftree->follow_mainline_state(movenum - 1);
+        try 
+		{
+            sgf_tree->load_from_file(filename);
+            game = sgf_tree->follow_mainline_state(movenum - 1);
             gtp_printf(id, "");
-        } catch (const std::exception&) {
+        }
+		catch (const std::exception&) 
+		{
             gtp_fail_printf(id, "cannot load file");
         }
         return;
-    } else if (command.find("kgs-chat") == 0) {
+    }
+	if (command.find("kgs-chat") == 0) 
+	{
         // kgs-chat (game|private) Name Message
-        std::istringstream cmdstream(command);
+        std::istringstream command_stream(command);
         std::string tmp;
 
-        cmdstream >> tmp; // eat kgs-chat
-        cmdstream >> tmp; // eat game|private
-        cmdstream >> tmp; // eat player name
-        do {
-            cmdstream >> tmp; // eat message
-        } while (!cmdstream.fail());
+		// Eat kgs-chat
+        command_stream >> tmp;
+		// Eat game|private
+        command_stream >> tmp;
+		// Eat player name
+        command_stream >> tmp;
+		
+        do 
+		{
+			// Eat message
+            command_stream >> tmp; 
+        } while (!command_stream.fail());
 
         gtp_fail_printf(id, "I'm a go bot, not a chat bot.");
         return;
-    } else if (command.find("kgs-game_over") == 0) {
+    }
+
+	if (command.find("kgs-game_over") == 0) 
+	{
         // Do nothing. Particularly, don't ponder.
         gtp_printf(id, "");
         return;
-    } else if (command.find("kgs-time_settings") == 0) {
-        // none, absolute, byoyomi, or canadian
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("kgs-time_settings") == 0) 
+	{
+        // None, absolute, byoyomi, or canadian
+        std::istringstream command_stream(command);
         std::string tmp;
         std::string tc_type;
         int maintime, byotime, byostones, byoperiods;
 
-        cmdstream >> tmp >> tc_type;
+        command_stream >> tmp >> tc_type;
 
-        if (tc_type.find("none") != std::string::npos) {
-            // 30 mins
+        if (tc_type.find("none") != std::string::npos) 
+		{
+            // 30 minutes
             game.set_time_control(30 * 60 * 100, 0, 0, 0);
-        } else if (tc_type.find("absolute") != std::string::npos) {
-            cmdstream >> maintime;
+        }
+		else if (tc_type.find("absolute") != std::string::npos) 
+		{
+            command_stream >> maintime;
             game.set_time_control(maintime * 100, 0, 0, 0);
-        } else if (tc_type.find("canadian") != std::string::npos) {
-            cmdstream >> maintime >> byotime >> byostones;
-            // convert to centiseconds and set
+        }
+		else if (tc_type.find("canadian") != std::string::npos) 
+		{
+            command_stream >> maintime >> byotime >> byostones;
+            // Convert to centiseconds and set
             game.set_time_control(maintime * 100, byotime * 100, byostones, 0);
-        } else if (tc_type.find("byoyomi") != std::string::npos) {
+        }
+		else if (tc_type.find("byoyomi") != std::string::npos) 
+		{
             // KGS style Fischer clock
-            cmdstream >> maintime >> byotime >> byoperiods;
+            command_stream >> maintime >> byotime >> byoperiods;
             game.set_time_control(maintime * 100, byotime * 100, 0, byoperiods);
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "syntax not understood: kgs-time_settings invalid tc_type");
             return;
         }
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail()) 
+		{
             gtp_printf(id, "");
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "syntax not understood: kgs-time_settings");
         }
         return;
-    } else if (command.find("netbench") == 0) {
-        std::istringstream cmdstream(command);
+		
+    }
+
+	if (command.find("netbench") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp;
         int iterations;
 
-        cmdstream >> tmp;  // eat netbench
-        cmdstream >> iterations;
+		// Eat netbench
+        command_stream >> tmp; 
+        command_stream >> iterations;
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail())
             s_network->benchmark(&game, iterations);
-        } else {
+        else
             s_network->benchmark(&game);
-        }
+		
         gtp_printf(id, "");
         return;
 
-    } else if (command.find("printsgf") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("printsgf") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp, filename;
 
-        cmdstream >> tmp;   // eat printsgf
-        cmdstream >> filename;
+		// Eat printsgf
+        command_stream >> tmp;   
+        command_stream >> filename;
 
         auto sgf_text = SGFTree::state_to_string(game, 0);
-        // GTP says consecutive newlines terminate the output,
-        // so we must filter those.
+        // GTP says consecutive newlines terminate the output, so we must filter those.
         boost::replace_all(sgf_text, "\n\n", "\n");
 
-        if (cmdstream.fail()) {
+        if (command_stream.fail()) 
+		{
             gtp_printf(id, "%s\n", sgf_text.c_str());
-        } else {
+        }
+		else 
+		{
             std::ofstream out(filename);
             out << sgf_text;
             out.close();
@@ -1083,55 +1342,61 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         }
 
         return;
-    } else if (command.find("load_training") == 0) {
-        std::istringstream cmdstream(command);
+    }
+	if (command.find("load_training") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp, filename;
 
         // tmp will eat "load_training"
-        cmdstream >> tmp >> filename;
+        command_stream >> tmp >> filename;
 
         Training::load_training(filename);
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail())
             gtp_printf(id, "");
-        } else {
+        else
             gtp_fail_printf(id, "syntax not understood: load_training");
-        }
 
         return;
-    } else if (command.find("save_training") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("save_training") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp, filename;
 
         // tmp will eat "save_training"
-        cmdstream >> tmp >>  filename;
+        command_stream >> tmp >>  filename;
 
         Training::save_training(filename);
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail())
             gtp_printf(id, "");
-        } else {
+        else
             gtp_fail_printf(id, "syntax not understood: save_training");
-        }
 
         return;
-    } else if (command.find("dump_training") == 0) {
-        std::istringstream cmdstream(command);
+    }
 
-        std::vector<std::string> cmdvector{};
+	if (command.find("dump_training") == 0)
+	{
+        std::istringstream command_stream(command);
+
+        std::vector<std::string> command_vector{};
         std::string winner_score, filename;
         float final_score;
 		int who_won;
 
-        std::string cmdstr;
-        while (cmdstream >> cmdstr) 
-            cmdvector.push_back(cmdstr);
+        std::string command_string;
+        while (command_stream >> command_string) 
+            command_vector.push_back(command_string);
 
-        if(cmdvector.size() == 4)
+        if(command_vector.size() == 4)
         {
-            auto winner_color = cmdvector[1];
-            winner_score = cmdvector[2];
-            filename = cmdvector[3];
+            auto winner_color = command_vector[1];
+            winner_score = command_vector[2];
+            filename = command_vector[3];
 
 			if (winner_color == "w" || winner_color == "white") 
 			{
@@ -1151,7 +1416,7 @@ void GTP::execute(GameState & game, const std::string& xinput) {
             {
                 final_score = std::stof(winner_score);
             }
-            catch (const std::invalid_argument& e_invalid_argument)
+            catch (const std::exception&)
             {
                 gtp_fail_printf(id, "syntax not understood: dump_training invalid score argument");
                 return;
@@ -1166,66 +1431,76 @@ void GTP::execute(GameState & game, const std::string& xinput) {
         Training::dump_training(who_won, final_score, filename);
 
         // If an error not occurred or the end of file is reached it's all fine
-        if (!cmdstream.fail() || cmdstream.eof()) {
+        if (!command_stream.fail() || command_stream.eof()) 
             gtp_printf(id, "");
-        } else {
+        else
             gtp_fail_printf(id, "syntax not understood: dump_training");
-        }
 
         return;
-    } else if (command.find("dump_debug") == 0) {
-        std::istringstream cmdstream(command);
+    }
+
+	if (command.find("dump_debug") == 0) 
+	{
+        std::istringstream command_stream(command);
         std::string tmp, filename;
 
         // tmp will eat "dump_debug"
-        cmdstream >> tmp >> filename;
+        command_stream >> tmp >> filename;
 
         Training::dump_debug(filename);
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail())
             gtp_printf(id, "");
-        } else {
+        else
             gtp_fail_printf(id, "syntax not understood: dump_debug");
-        }
 
         return;
-    } else if (command.find("dump_supervised") == 0) {
-        std::istringstream cmdstream(command);
-        std::string tmp, sgfname, outname;
+    }
+
+	if (command.find("dump_supervised") == 0) 
+	{
+        std::istringstream command_stream(command);
+        std::string tmp, sgf_name, out_name;
 
         // tmp will eat dump_supervised
-        cmdstream >> tmp >> sgfname >> outname;
+        command_stream >> tmp >> sgf_name >> out_name;
 
-        Training::dump_supervised(sgfname, outname);
+        Training::dump_supervised(sgf_name, out_name);
 
-        if (!cmdstream.fail()) {
+        if (!command_stream.fail())
             gtp_printf(id, "");
-        } else {
+        else
             gtp_fail_printf(id, "syntax not understood: dump_supervised");
-        }
+		
         return;
-    } else if (command.find("lz-memory_report") == 0) {
+    }
+
+	if (command.find("lz-memory_report") == 0) 
+	{
         auto base_memory = get_base_memory();
         auto tree_size = add_overhead(UCTNodePointer::get_tree_size());
         auto cache_size = add_overhead(s_network->get_estimated_cache_size());
 
         auto total = base_memory + tree_size + cache_size;
-        gtp_printf(id,
-            "Estimated total memory consumption: %d MiB.\n"
-            "Network with overhead: %d MiB / Search tree: %d MiB / Network cache: %d\n",
+        gtp_printf(id, "Estimated total memory consumption: %d MiB.\n" "Network with overhead: %d MiB / Search tree: %d MiB / Network cache: %d\n",
             total / MiB, base_memory / MiB, tree_size / MiB, cache_size / MiB);
         return;
-    } else if (command.find("lz-setoption") == 0) {
-        return execute_setoption(*search.get(), id, command);
-    } else if (command.find("gomill-explain_last_move") == 0) {
+    }
+
+	if (command.find("lz-setoption") == 0) 
+        return execute_setoption(*search, id, command);
+
+	if (command.find("gomill-explain_last_move") == 0) 
+	{
         gtp_printf(id, "%s\n", search->explain_last_think().c_str());
         return;
     }
+	
     gtp_fail_printf(id, "unknown command");
-    return;
 }
 
-std::pair<std::string, std::string> GTP::parse_option(std::istringstream& is) {
+std::pair<std::string, std::string> GTP::parse_option(std::istringstream& is)
+{
     std::string token, name, value;
 
     // Read option name (can contain spaces)
@@ -1239,51 +1514,48 @@ std::pair<std::string, std::string> GTP::parse_option(std::istringstream& is) {
     return std::make_pair(name, value);
 }
 
-size_t GTP::get_base_memory() {
-    // At the moment of writing the memory consumption is
-    // roughly network size + 85 for one GPU and + 160 for two GPUs.
+size_t GTP::get_base_memory()
+{
+    // At the moment of writing the memory consumption is roughly network size + 85 for one GPU and + 160 for two GPUs.
 #ifdef USE_OPENCL
-    auto gpus = std::max(cfg_gpus.size(), size_t{1});
+    const auto gpus = std::max(cfg_gpus.size(), size_t{1});
     return s_network->get_estimated_size() + 85 * MiB * gpus;
 #else
     return s_network->get_estimated_size();
 #endif
 }
 
-std::pair<bool, std::string> GTP::set_max_memory(size_t max_memory,
-    int cache_size_ratio_percent) {
-    if (max_memory == 0) {
+std::pair<bool, std::string> GTP::set_max_memory(size_t max_memory, const int cache_size_ratio_percent)
+{
+    if (max_memory == 0)
         max_memory = UCTSearch::DEFAULT_MAX_MEMORY;
-    }
 
     // Calculate amount of memory available for the search tree +
     // NNCache by estimating a constant memory overhead first.
-    auto base_memory = get_base_memory();
+    const auto base_memory = get_base_memory();
 
-    if (max_memory < base_memory) {
+    if (max_memory < base_memory) 
+	{
         return std::make_pair(false, "Not enough memory for network. " +
             std::to_string(base_memory / MiB) + " MiB required.");
     }
 
-    auto max_memory_for_search = max_memory - base_memory;
+    const auto max_memory_for_search = max_memory - base_memory;
 
     assert(cache_size_ratio_percent >= 1);
     assert(cache_size_ratio_percent <= 99);
-    auto max_cache_size = max_memory_for_search *
-        cache_size_ratio_percent / 100;
+    const auto max_cache_size = max_memory_for_search * cache_size_ratio_percent / 100;
 
-    auto max_cache_count =
-        (int)(remove_overhead(max_cache_size) / NNCache::ENTRY_SIZE);
+    const auto max_cache_count = static_cast<int>(remove_overhead(max_cache_size) / NNCache::ENTRY_SIZE);
 
     // Verify if the setting would not result in too little cache.
-    if (max_cache_count < NNCache::MIN_CACHE_COUNT) {
+    if (max_cache_count < NNCache::MIN_CACHE_COUNT)
         return std::make_pair(false, "Not enough memory for cache.");
-    }
-    auto max_tree_size = max_memory_for_search - max_cache_size;
+	
+    const auto max_tree_size = max_memory_for_search - max_cache_size;
 
-    if (max_tree_size < UCTSearch::MIN_TREE_SPACE) {
+    if (max_tree_size < UCTSearch::MIN_TREE_SPACE)
         return std::make_pair(false, "Not enough memory for search tree.");
-    }
 
     // Only if settings are ok we store the values in config.
     cfg_max_memory = max_memory;
@@ -1291,46 +1563,49 @@ std::pair<bool, std::string> GTP::set_max_memory(size_t max_memory,
     // Set max_tree_size.
     cfg_max_tree_size = remove_overhead(max_tree_size);
     // Resize cache.
-    s_network->nncache_resize(max_cache_count);
+    s_network->nn_cache_resize(max_cache_count);
 
-    return std::make_pair(true, "Setting max tree size to " +
-        std::to_string(max_tree_size / MiB) + " MiB and cache size to " +
-        std::to_string(max_cache_size / MiB) +
-        " MiB.");
+    return std::make_pair(true, "Setting max tree size to " +  std::to_string(max_tree_size / MiB) + " MiB and cache size to " + std::to_string(max_cache_size / MiB) + " MiB.");
 }
 
-void GTP::execute_setoption(UCTSearch & search,
-                            int id, const std::string &command) {
-    std::istringstream cmdstream(command);
+void GTP::execute_setoption(UCTSearch & search, int id, const std::string &command)
+{
+    std::istringstream command_stream(command);
     std::string tmp, name_token;
 
-    // Consume lz_setoption, name.
-    cmdstream >> tmp >> name_token;
+    // Eat lz_setoption, name.
+    command_stream >> tmp >> name_token;
 
     // Print available options if called without an argument.
-    if (cmdstream.fail()) {
-        std::string options_out_tmp("");
-        for (int i = 0; s_options[i].size() > 0; i++) {
-            options_out_tmp = options_out_tmp + "\n" + s_options[i];
-        }
+    if (command_stream.fail()) 
+	{
+        std::string options_out_tmp;
+    	
+        for (auto i = 0; !s_options[i].empty(); i++) 
+            options_out_tmp += "\n" + s_options[i];
+    	
         gtp_printf(id, options_out_tmp.c_str());
         return;
     }
 
-    if (name_token.find("name") != 0) {
+    if (name_token.find("name") != 0) 
+	{
         gtp_fail_printf(id, "incorrect syntax for lz-setoption");
         return;
     }
 
     std::string name, value;
-    std::tie(name, value) = parse_option(cmdstream);
+    std::tie(name, value) = parse_option(command_stream);
 
-    if (name == "maximum memory use (mib)") {
-        std::istringstream valuestream(value);
+    if (name == "maximum memory use (mib)")
+	{
+        std::istringstream value_stream(value);
         int max_memory_in_mib;
-        valuestream >> max_memory_in_mib;
-        if (!valuestream.fail()) {
-            if (max_memory_in_mib < 128 || max_memory_in_mib > 131072) {
+        value_stream >> max_memory_in_mib;
+        if (!value_stream.fail())
+		{
+            if (max_memory_in_mib < 128 || max_memory_in_mib > 131072) 
+			{
                 gtp_fail_printf(id, "incorrect value");
                 return;
             }
@@ -1338,62 +1613,72 @@ void GTP::execute_setoption(UCTSearch & search,
             std::string reason;
             std::tie(result, reason) = set_max_memory(max_memory_in_mib * MiB,
                 cfg_max_cache_ratio_percent);
-            if (result) {
+            if (result) 
                 gtp_printf(id, reason.c_str());
-            } else {
+            else
                 gtp_fail_printf(id, reason.c_str());
-            }
-            return;
-        } else {
-            gtp_fail_printf(id, "incorrect value");
+        	
             return;
         }
-    } else if (name == "percentage of memory for cache") {
-        std::istringstream valuestream(value);
+    	
+        gtp_fail_printf(id, "incorrect value");
+        return;
+    }
+
+	if (name == "percentage of memory for cache") 
+	{
+        std::istringstream value_stream(value);
         int cache_size_ratio_percent;
-        valuestream >> cache_size_ratio_percent;
-        if (cache_size_ratio_percent < 1 || cache_size_ratio_percent > 99) {
+        value_stream >> cache_size_ratio_percent;
+        if (cache_size_ratio_percent < 1 || cache_size_ratio_percent > 99) 
+		{
             gtp_fail_printf(id, "incorrect value");
             return;
         }
+		
         bool result;
         std::string reason;
         std::tie(result, reason) = set_max_memory(cfg_max_memory,
             cache_size_ratio_percent);
-        if (result) {
+        if (result)
             gtp_printf(id, reason.c_str());
-        } else {
+        else
             gtp_fail_printf(id, reason.c_str());
-        }
+		
         return;
-    } else if (name == "visits") {
-        std::istringstream valuestream(value);
+    }
+
+	if (name == "visits") 
+	{
+        std::istringstream value_stream(value);
         int visits;
-        valuestream >> visits;
+        value_stream >> visits;
         cfg_max_visits = visits;
 
         // 0 may be specified to mean "no limit"
         if (cfg_max_visits == 0) {
             cfg_max_visits = UCTSearch::UNLIMITED_PLAYOUTS;
         }
-        // Note that if the visits are changed but no
-        // explicit command to set memory usage is given,
-        // we will stick with the initial guess we made on startup.
+        // Note that if the visits are changed but no explicit command to set memory usage is given, we will stick with the initial guess we made on startup.
         search.set_visit_limit(cfg_max_visits);
 
         gtp_printf(id, "");
-    } else if (name == "playouts") {
-        std::istringstream valuestream(value);
+    }
+	else if (name == "playouts") 
+	{
+        std::istringstream value_stream(value);
         int playouts;
-        valuestream >> playouts;
+        value_stream >> playouts;
         cfg_max_playouts = playouts;
 
         // 0 may be specified to mean "no limit"
-        if (cfg_max_playouts == 0) {
+        if (cfg_max_playouts == 0) 
+		{
             cfg_max_playouts = UCTSearch::UNLIMITED_PLAYOUTS;
-        } else if (cfg_allow_pondering) {
-            // Limiting playouts while pondering is still enabled
-            // makes no sense.
+        }
+		else if (cfg_allow_pondering)
+		{
+            // Limiting playouts while pondering is still enabled makes no sense.
             gtp_fail_printf(id, "incorrect value");
             return;
         }
@@ -1404,37 +1689,50 @@ void GTP::execute_setoption(UCTSearch & search,
         search.set_playout_limit(cfg_max_playouts);
 
         gtp_printf(id, "");
-    } else if (name == "lagbuffer") {
-        std::istringstream valuestream(value);
+    }
+	else if (name == "lagbuffer")
+	{
+        std::istringstream value_stream(value);
         int lagbuffer;
-        valuestream >> lagbuffer;
+        value_stream >> lagbuffer;
         cfg_lag_buffer_cs = lagbuffer;
         gtp_printf(id, "");
-    } else if (name == "pondering") {
-        std::istringstream valuestream(value);
+    }
+	else if (name == "pondering") 
+	{
+        std::istringstream value_stream(value);
         std::string toggle;
-        valuestream >> toggle;
-        if (toggle == "true") {
-            if (cfg_max_playouts != UCTSearch::UNLIMITED_PLAYOUTS) {
+        value_stream >> toggle;
+        if (toggle == "true") 
+		{
+            if (cfg_max_playouts != UCTSearch::UNLIMITED_PLAYOUTS) 
+			{
                 gtp_fail_printf(id, "incorrect value");
                 return;
             }
             cfg_allow_pondering = true;
-        } else if (toggle == "false") {
+        }
+		else if (toggle == "false") 
+		{
             cfg_allow_pondering = false;
-        } else {
+        }
+		else 
+		{
             gtp_fail_printf(id, "incorrect value");
             return;
         }
         gtp_printf(id, "");
-    } else if (name == "resign percentage") {
-        std::istringstream valuestream(value);
-        int resignpct;
-        valuestream >> resignpct;
-        cfg_resignpct = resignpct;
+    }
+	else if (name == "resign percentage") 
+	{
+        std::istringstream value_stream(value);
+        int resign_pct;
+        value_stream >> resign_pct;
+        cfg_resign_pct = resign_pct;
         gtp_printf(id, "");
-    } else {
+    }
+	else 
+	{
         gtp_fail_printf(id, "Unknown option");
     }
-    return;
 }

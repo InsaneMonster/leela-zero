@@ -80,7 +80,7 @@ bool UCTNode::create_children(Network & network,
     }
 
     const auto raw_netlist = network.get_output(
-        &state, Network::Ensemble::RANDOM_SYMMETRY);
+        &state, Network::ensemble::RANDOM_SYMMETRY);
 
     // DCNN returns score as side to move
     const auto stm_eval = raw_netlist.score;
@@ -94,7 +94,7 @@ bool UCTNode::create_children(Network & network,
     }
     eval = m_net_eval;
 
-    std::vector<Network::PolicyVertexPair> nodelist;
+    std::vector<Network::policy_vertex_pair> nodelist;
 
     auto legal_sum = 0.0f;
     for (auto i = 0; i < NUM_INTERSECTIONS; i++) {
@@ -108,7 +108,7 @@ bool UCTNode::create_children(Network & network,
     }
 
     // Always try passes if we're not trying to be clever.
-    auto allow_pass = cfg_dumbpass;
+    auto allow_pass = cfg_dumb_pass;
 
     // Less than 20 available intersections in a 19x19 game.
     if (nodelist.size() <= std::max(5, BOARD_SIZE)) {
@@ -150,7 +150,7 @@ bool UCTNode::create_children(Network & network,
 }
 
 void UCTNode::link_nodelist(std::atomic<int>& nodecount,
-                            std::vector<Network::PolicyVertexPair>& nodelist,
+                            std::vector<Network::policy_vertex_pair>& nodelist,
                             float min_psa_ratio) {
     assert(min_psa_ratio < m_min_psa_ratio_children);
 
@@ -317,8 +317,7 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
     }
 
-    const auto numerator = std::sqrt(double(parentvisits) *
-            std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
+    const auto numerator = std::sqrt(double(parentvisits) * std::log(cfg_log_puct * double(parentvisits) + cfg_log_const));
     const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction) * std::sqrt(total_visited_policy);
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     const auto fpu_eval = get_net_eval(color) - fpu_reduction;

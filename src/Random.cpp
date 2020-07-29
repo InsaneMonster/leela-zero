@@ -30,7 +30,6 @@
 #include "config.h"
 #include "Random.h"
 
-#include <climits>
 #include <cstdint>
 #include <thread>
 #include <random>
@@ -38,28 +37,57 @@
 #include "GTP.h"
 #include "Utils.h"
 
-Random& Random::get_Rng() {
+/// Generate using the SplitMix64 RNG
+static std::uint64_t splitmix64(std::uint64_t z)
+{
+	z += 0x9e3779b97f4a7c15;
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+	return z ^ (z >> 31);
+}
+
+Random::Random(const std::uint64_t seed)
+{
+	if (seed == 0)
+	{
+		const auto thread_id = std::hash<std::thread::id>()(std::this_thread::get_id());
+		random_seed(cfg_rng_seed ^ std::uint64_t(thread_id));
+	}
+	else
+	{
+		random_seed(seed);
+	}
+}
+
+void Random::random_seed(const std::uint64_t seed)
+{
+	// As suggested by http://xoroshiro.di.unimi.it/xoroshiro128plus.c
+	m_s[0] = splitmix64(seed);
+	m_s[1] = splitmix64(m_s[0]);
+}
+
+Random& Random::get_rng()
+{
     static thread_local Random s_rng{0};
     return s_rng;
 }
 
-Random::Random(std::uint64_t seed) {
-    if (seed == 0) {
-        size_t thread_id =
-            std::hash<std::thread::id>()(std::this_thread::get_id());
-        seedrandom(cfg_rng_seed ^ std::uint64_t(thread_id));
-    } else {
-        seedrandom(seed);
-    }
+std::uint64_t Random::random_uint64()
+{
+	return gen();
 }
 
-// This is xoroshiro128+.
-// Note that the last bit isn't entirely random, so don't use it,
-// if possible.
-std::uint64_t Random::gen() {
-    const std::uint64_t s0 = m_s[0];
-    std::uint64_t s1 = m_s[1];
-    const std::uint64_t result = s0 + s1;
+std::uint64_t Random::random_uint64(const uint64_t max)
+{
+	const auto inclusive_max = max - 1;
+	return std::uniform_int_distribution<uint64_t>{0, inclusive_max}(*this);
+}
+
+std::uint64_t Random::gen()
+{
+    const auto s0 = m_s[0];
+    auto s1 = m_s[1];
+    const auto result = s0 + s1;
 
     s1 ^= s0;
     m_s[0] = Utils::rotl(s0, 55) ^ s1 ^ (s1 << 14);
@@ -67,28 +95,3 @@ std::uint64_t Random::gen() {
 
     return result;
 }
-
-std::uint64_t Random::randuint64(const uint64_t max) {
-    const uint64_t inclusive_max = max - 1;
-    return std::uniform_int_distribution<uint64_t>{0, inclusive_max}(*this);
-}
-
-std::uint64_t Random::randuint64() {
-    return gen();
-}
-
-static std::uint64_t splitmix64(std::uint64_t z) {
-    z += 0x9e3779b97f4a7c15;
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-    return z ^ (z >> 31);
-}
-
-void Random::seedrandom(std::uint64_t seed) {
-    // Initialize state of xoroshiro128+ by transforming the seed
-    // with the splitmix64 algorithm.
-    // As suggested by http://xoroshiro.di.unimi.it/xoroshiro128plus.c
-    m_s[0] = splitmix64(seed);
-    m_s[1] = splitmix64(m_s[0]);
-}
-

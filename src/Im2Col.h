@@ -35,9 +35,8 @@
 #include <algorithm>
 
 template <unsigned long filter_size>
-void im2col(const int channels,
-            const std::vector<float>& input,
-            std::vector<float>& output) {
+void im2col(const int channels, const std::vector<float>& input, std::vector<float>& output)
+{
     constexpr unsigned int height = BOARD_SIZE;
     constexpr unsigned int width = BOARD_SIZE;
 
@@ -45,31 +44,38 @@ void im2col(const int channels,
     constexpr unsigned int output_h = height + 2 * pad - filter_size  + 1;
     constexpr unsigned int output_w = width + 2 * pad - filter_size + 1;
 
-    const float* data_im = input.data();
-    float* data_col = output.data();
+    auto data_im = input.data();
+    auto data_col = output.data();
 
-    for (int channel = channels; channel--; data_im += NUM_INTERSECTIONS) {
-        for (unsigned int kernel_row = 0; kernel_row < filter_size; kernel_row++) {
-            for (unsigned int kernel_col = 0; kernel_col < filter_size; kernel_col++) {
+    for (auto channel = channels; channel--; data_im += NUM_INTERSECTIONS) 
+	{
+        for (unsigned int kernel_row = 0; kernel_row < filter_size; kernel_row++) 
+		{
+            for (unsigned int kernel_col = 0; kernel_col < filter_size; kernel_col++) 
+			{
                 int input_row = -pad + kernel_row;
-                for (int output_rows = output_h; output_rows; output_rows--) {
-                    if (unsigned(input_row) < height) {
+                for (int output_rows = output_h; output_rows; --output_rows) 
+				{
+                    if (unsigned(input_row) < height) 
+					{
                         int input_col = -pad + kernel_col;
-                        for (int output_col = output_w; output_col; output_col--) {
-                            if (unsigned(input_col) < width) {
-                                *(data_col++) =
-                                    data_im[input_row * width + input_col];
-                            } else {
+                        for (int output_col = output_w; output_col; --output_col) 
+						{
+                            if (unsigned(input_col) < width) 
+                                *(data_col++) = data_im[input_row * width + input_col];
+                        	else 
                                 *(data_col++) = 0;
-                            }
-                            input_col++;
-                        }
-                    } else {
-                        for (int output_cols = output_w; output_cols; output_cols--) {
-                            *(data_col++) = 0;
+                        	
+                            ++input_col;
                         }
                     }
-                    input_row++;
+                	else 
+					{
+                        for (int output_cols = output_w; output_cols; --output_cols)
+                            *(data_col++) = 0;
+                    }
+                	
+                    ++input_row;
                 }
             }
         }
@@ -77,12 +83,11 @@ void im2col(const int channels,
 }
 
 template <>
-void im2col<1>(const int channels,
-               const std::vector<float>& input,
-               std::vector<float>& output) {
-    auto outSize = size_t{channels * static_cast<size_t>(NUM_INTERSECTIONS)};
-    assert(output.size() == outSize);
-    std::copy(begin(input), begin(input) + outSize, begin(output));
+inline void im2col<1>(const int channels, const std::vector<float>& input, std::vector<float>& output)
+{
+	const auto out_size = size_t{channels * static_cast<size_t>(NUM_INTERSECTIONS)};
+    assert(output.size() == out_size);
+    std::copy(begin(input), begin(input) + out_size, begin(output));
 }
 
 #endif

@@ -30,8 +30,6 @@
 #ifndef GTP_H_INCLUDED
 #define GTP_H_INCLUDED
 
-#include "config.h"
-
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -40,31 +38,33 @@
 #include "GameState.h"
 #include "UCTSearch.h"
 
-struct MoveToAvoid {
+struct MoveToAvoid
+{
     int color;
     size_t until_move;
     int vertex;
 
-    MoveToAvoid(int color, size_t until_move, int vertex)
-        : color(color), until_move(until_move), vertex(vertex)
+    MoveToAvoid(const int color, const size_t until_move, const int vertex) : color(color), until_move(until_move), vertex(vertex)
     {}
 
-    bool operator==(const MoveToAvoid other) const {
-        return color == other.color &&
-            until_move == other.until_move && vertex == other.vertex;
+    bool operator==(const MoveToAvoid other) const
+	{
+        return color == other.color && until_move == other.until_move && vertex == other.vertex;
     }
 };
 
-class AnalyzeTags {
+class AnalyzeTags
+{
     friend class LeelaTest;
 
 public:
+	
     AnalyzeTags() = default;
-    AnalyzeTags(std::istringstream& cmdstream, const GameState& game);
+    AnalyzeTags(std::istringstream& command_stream, const GameState& game);
 
     void add_move_to_avoid(int color, int vertex, size_t until_move);
     void add_move_to_allow(int color, int vertex, size_t until_move);
-    int interval_centis() const;
+    int interval_centiseconds() const;
     int invalid() const;
     int who() const;
     size_t post_move_count() const;
@@ -72,11 +72,13 @@ public:
     bool has_move_restrictions() const;
 
 private:
+	
     bool m_invalid{true};
     std::vector<MoveToAvoid> m_moves_to_avoid, m_moves_to_allow;
-    int m_interval_centis{0};
+    int m_interval_centiseconds{0};
     int m_who{FastBoard::INVALID};
     size_t m_min_moves{0};
+	
 };
 
 extern bool cfg_gtp_mode;
@@ -88,15 +90,15 @@ extern int cfg_max_visits;
 extern size_t cfg_max_memory;
 extern size_t cfg_max_tree_size;
 extern int cfg_max_cache_ratio_percent;
-extern TimeManagement::enabled_t cfg_timemanage;
+extern TimeManagement::enabled_t cfg_time_manage;
 extern int cfg_lag_buffer_cs;
-extern int cfg_resignpct;
+extern int cfg_resign_pct;
 extern int cfg_noise;
 extern int cfg_random_cnt;
 extern int cfg_random_min_visits;
 extern float cfg_random_temp;
 extern std::uint64_t cfg_rng_seed;
-extern bool cfg_dumbpass;
+extern bool cfg_dumb_pass;
 #ifdef USE_OPENCL
 extern std::vector<int> cfg_gpus;
 extern bool cfg_sgemm_exhaustive;
@@ -109,15 +111,15 @@ extern precision_t cfg_precision;
 #endif
 #endif
 extern float cfg_puct;
-extern float cfg_logpuct;
-extern float cfg_logconst;
+extern float cfg_log_puct;
+extern float cfg_log_const;
 extern float cfg_softmax_temp;
 extern float cfg_fpu_reduction;
 extern float cfg_fpu_root_reduction;
 extern float cfg_ci_alpha;
 extern float cfg_lcb_min_visit_ratio;
 extern std::string cfg_logfile;
-extern std::string cfg_weightsfile;
+extern std::string cfg_weights_file;
 extern FILE* cfg_logfile_handle;
 extern bool cfg_quiet;
 extern std::string cfg_options_str;
@@ -132,29 +134,39 @@ static constexpr size_t MiB = 1024LL * 1024LL;
     https://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html
     GTP is meant to be used between programs. It's not a human interface.
 */
-class GTP {
+
+/// TODO
+class GTP
+{
 public:
+	
     static std::unique_ptr<Network> s_network;
     static void initialize(std::unique_ptr<Network>&& network);
-    static void execute(GameState & game, const std::string& xinput);
+    static void execute(GameState & game, const std::string& x_input);
     static void setup_default_parameters();
+	
 private:
+	
     static constexpr int GTP_VERSION = 2;
 
     static std::string get_life_list(const GameState & game, bool live);
     static const std::string s_commands[];
     static const std::string s_options[];
-    static std::pair<std::string, std::string> parse_option(
-        std::istringstream& is);
-    static std::pair<bool, std::string> set_max_memory(
-        size_t max_memory, int cache_size_ratio_percent);
-    static void execute_setoption(UCTSearch& search,
-                                  int id, const std::string& command);
+    static std::pair<std::string, std::string> parse_option(std::istringstream& is);
+    static std::pair<bool, std::string> set_max_memory( size_t max_memory, int cache_size_ratio_percent);
+    static void execute_setoption(UCTSearch& search, int id, const std::string& command);
 
     // Memory estimation helpers
+	
     static size_t get_base_memory();
-    static size_t add_overhead(size_t s) { return s * 11LL / 10LL; }
-    static size_t remove_overhead(size_t s) { return s * 10LL / 11LL; }
+    static size_t add_overhead(const size_t s)
+    {
+	    return s * 11LL / 10LL;
+    }
+    static size_t remove_overhead(const size_t s)
+    {
+	    return s * 10LL / 11LL;
+    }
 };
 
 

@@ -79,7 +79,7 @@ static const std::string sourceCode_config = R"(
 "\n#define NUM_INTERSECTIONS " + std::to_string(NUM_INTERSECTIONS) +
 "\n#define WINOGRAD_M " + std::to_string(WINOGRAD_M) +
 "\n#define WINOGRAD_ALPHA " + std::to_string(WINOGRAD_ALPHA) +
-"\n#define WTILES " + std::to_string(WINOGRAD_WTILES);
+"\n#define WTILES " + std::to_string(WINOGRAD_W_TILES);
 
 static const std::string sourceCode_convolve1 =
     #include "kernels/convolve1.opencl"

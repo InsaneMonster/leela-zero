@@ -41,18 +41,18 @@ void Zobrist::init_zobrist(Random& rng)
 	// Generate random hashes for states
     for (auto i = 0; i < STATES; i++) 
         for (auto j = 0; j < FastBoard::VERTICES_NUMBER; j++) 
-            zobrist_states[i][j] = rng.randuint64();
+            zobrist_states[i][j] = rng.random_uint64();
 
 	// Generate random hashes for ko moves
     for (auto j = 0; j < FastBoard::VERTICES_NUMBER; j++)
-        zobrist_ko_move[j] = rng.randuint64();
+        zobrist_ko_move[j] = rng.random_uint64();
 
 	// Generate random hashes for prisoners
     for (auto i = 0; i < COLORS; i++) 
         for (auto j = 0; j < FastBoard::VERTICES_NUMBER * 2; j++)
-            zobrist_prisoners[i][j] = rng.randuint64();
+            zobrist_prisoners[i][j] = rng.random_uint64();
 
 	// Generate random hashes for passes
     for (auto i = 0; i < PASSES; i++)
-        zobrist_passes[i]  = rng.randuint64();
+        zobrist_passes[i]  = rng.random_uint64();
 }

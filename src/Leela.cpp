@@ -145,10 +145,10 @@ static void parse_commandline(int argc, char *argv[]) {
                      "Weaken engine by limiting the number of visits.")
         ("lagbuffer,b", po::value<int>()->default_value(cfg_lag_buffer_cs),
                         "Safety margin for time usage in centiseconds.")
-        ("resignpct,r", po::value<int>()->default_value(cfg_resignpct),
+        ("resignpct,r", po::value<int>()->default_value(cfg_resign_pct),
                         "Resign when score is less than x.\n"
                         "-1 uses 10 but scales for handicap.")
-        ("weights,w", po::value<std::string>()->default_value(cfg_weightsfile), "File with network weights.")
+        ("weights,w", po::value<std::string>()->default_value(cfg_weights_file), "File with network weights.")
         ("logfile,l", po::value<std::string>(), "File to log input/output to.")
         ("quiet,q", "Disable all diagnostic output.")
         ("timemanage", po::value<std::string>()->default_value("auto"),
@@ -295,10 +295,10 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_logfile_handle = fopen(cfg_logfile.c_str(), "a");
     }
 
-    cfg_weightsfile = vm["weights"].as<std::string>();
-    if (vm["weights"].defaulted() && !boost::filesystem::exists(cfg_weightsfile)) {
+    cfg_weights_file = vm["weights"].as<std::string>();
+    if (vm["weights"].defaulted() && !boost::filesystem::exists(cfg_weights_file)) {
         printf("A network weights file is required to use the program.\n");
-        printf("By default, Leela Zero looks for it in %s.\n", cfg_weightsfile.c_str());
+        printf("By default, Leela Zero looks for it in %s.\n", cfg_weights_file.c_str());
         exit(EXIT_FAILURE);
     }
 
@@ -381,7 +381,7 @@ static void parse_commandline(int argc, char *argv[]) {
     }
 
     if (vm.count("dumbpass")) {
-        cfg_dumbpass = true;
+        cfg_dumb_pass = true;
     }
 
     if (vm.count("playouts")) {
@@ -409,7 +409,7 @@ static void parse_commandline(int argc, char *argv[]) {
     }
 
     if (vm.count("resignpct")) {
-        cfg_resignpct = vm["resignpct"].as<int>();
+        cfg_resign_pct = vm["resignpct"].as<int>();
     }
 
     if (vm.count("randomcnt")) {
@@ -427,22 +427,22 @@ static void parse_commandline(int argc, char *argv[]) {
     if (vm.count("timemanage")) {
         auto tm = vm["timemanage"].as<std::string>();
         if (tm == "auto") {
-            cfg_timemanage = TimeManagement::AUTO;
+            cfg_time_manage = TimeManagement::AUTO;
         } else if (tm == "on") {
-            cfg_timemanage = TimeManagement::ON;
+            cfg_time_manage = TimeManagement::ON;
         } else if (tm == "off") {
-            cfg_timemanage = TimeManagement::OFF;
+            cfg_time_manage = TimeManagement::OFF;
         } else if (tm == "fast") {
-            cfg_timemanage = TimeManagement::FAST;
+            cfg_time_manage = TimeManagement::FAST;
         } else if (tm == "no_pruning") {
-            cfg_timemanage = TimeManagement::NO_PRUNING;
+            cfg_time_manage = TimeManagement::NO_PRUNING;
         } else {
             printf("Invalid timemanage value.\n");
             exit(EXIT_FAILURE);
         }
     }
-    if (cfg_timemanage == TimeManagement::AUTO) {
-        cfg_timemanage =
+    if (cfg_time_manage == TimeManagement::AUTO) {
+        cfg_time_manage =
             cfg_noise ? TimeManagement::NO_PRUNING : TimeManagement::ON;
     }
 
@@ -461,7 +461,7 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_noise = false;  // Not much of a benchmark if random was used.
         cfg_random_cnt = 0;
         cfg_rng_seed = 1;
-        cfg_timemanage = TimeManagement::OFF;  // Reliable number of playouts.
+        cfg_time_manage = TimeManagement::OFF;  // Reliable number of playouts.
 
         if (!vm.count("playouts") && !vm.count("visits")) {
             cfg_max_visits = 3200; // Default to self-play and match values.
@@ -485,7 +485,7 @@ static void parse_commandline(int argc, char *argv[]) {
 static void initialize_network() {
     auto network = std::make_unique<Network>();
     auto playouts = std::min(cfg_max_playouts, cfg_max_visits);
-    network->initialize(playouts, cfg_weightsfile);
+    network->initialize(playouts, cfg_weights_file);
 
     GTP::initialize(std::move(network));
 }
@@ -501,7 +501,7 @@ void init_global_objects() {
     // Initialize the main thread RNG.
     // Doing this here avoids mixing in the thread_id, which
     // improves reproducibility across platforms.
-    Random::get_Rng().seedrandom(cfg_rng_seed);
+    Random::get_rng().random_seed(cfg_rng_seed);
 
     Utils::create_z_table();
 

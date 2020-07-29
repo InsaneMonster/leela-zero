@@ -502,7 +502,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
                 myprintf("Pass is the only acceptable move.\n");
             }
         }
-    } else if (!cfg_dumbpass) {
+    } else if (!cfg_dumb_pass) {
         const auto relative_score =
             (color == FastBoard::BLACK ? 1 : -1) * m_rootstate.final_score();
         if (bestmove == FastBoard::PASS) {
@@ -701,12 +701,12 @@ size_t UCTSearch::prune_noncontenders(int color, int elapsed_centis, int time_fo
 }
 
 bool UCTSearch::have_alternate_moves(int elapsed_centis, int time_for_move) {
-    if (cfg_timemanage == TimeManagement::OFF) {
+    if (cfg_time_manage == TimeManagement::OFF) {
         return true;
     }
     auto my_color = m_rootstate.get_to_move();
     // For self play use. Disables pruning of non-contenders to not bias the training data.
-    auto prune = cfg_timemanage != TimeManagement::NO_PRUNING;
+    auto prune = cfg_time_manage != TimeManagement::NO_PRUNING;
     auto pruned = prune_noncontenders(my_color, elapsed_centis, time_for_move, prune);
     if (pruned < m_root->get_children().size() - 1) {
         return true;
@@ -719,7 +719,7 @@ bool UCTSearch::have_alternate_moves(int elapsed_centis, int time_for_move) {
     auto tc = m_rootstate.get_timecontrol();
     if (!tc.can_accumulate_time(my_color)
         || m_maxplayouts < UCTSearch::UNLIMITED_PLAYOUTS) {
-        if (cfg_timemanage != TimeManagement::FAST) {
+        if (cfg_time_manage != TimeManagement::FAST) {
             return true;
         }
     }
@@ -797,8 +797,8 @@ int UCTSearch::think(int color, passflag_t passflag) {
         Time elapsed;
         int elapsed_centis = Time::time_difference_centiseconds(start, elapsed);
 
-        if (cfg_analyze_tags.interval_centis() &&
-            elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
+        if (cfg_analyze_tags.interval_centiseconds() &&
+            elapsed_centis - last_output > cfg_analyze_tags.interval_centiseconds()) {
             last_output = elapsed_centis;
             output_analysis(m_rootstate, *m_root);
         }
@@ -815,7 +815,7 @@ int UCTSearch::think(int color, passflag_t passflag) {
     } while (keeprunning);
 
     // Make sure to post at least once.
-    if (cfg_analyze_tags.interval_centis() && last_output == 0) {
+    if (cfg_analyze_tags.interval_centiseconds() && last_output == 0) {
         output_analysis(m_rootstate, *m_root);
     }
 
@@ -900,10 +900,10 @@ void UCTSearch::ponder() {
         if (result.valid()) {
             increment_playouts();
         }
-        if (cfg_analyze_tags.interval_centis()) {
+        if (cfg_analyze_tags.interval_centiseconds()) {
             Time elapsed;
             int elapsed_centis = Time::time_difference_centiseconds(start, elapsed);
-            if (elapsed_centis - last_output > cfg_analyze_tags.interval_centis()) {
+            if (elapsed_centis - last_output > cfg_analyze_tags.interval_centiseconds()) {
                 last_output = elapsed_centis;
                 output_analysis(m_rootstate, *m_root);
             }
@@ -913,7 +913,7 @@ void UCTSearch::ponder() {
     } while (!Utils::input_pending() && keeprunning);
 
     // Make sure to post at least once.
-    if (cfg_analyze_tags.interval_centis() && last_output == 0) {
+    if (cfg_analyze_tags.interval_centiseconds() && last_output == 0) {
         output_analysis(m_rootstate, *m_root);
     }
 

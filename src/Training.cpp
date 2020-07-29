@@ -170,7 +170,7 @@ void Training::record(Network & network, GameState& state, UCTNode& root) {
     step.planes = get_planes(&state);
 
     const auto result = network.get_output(
-        &state, Network::Ensemble::DIRECT, Network::IDENTITY_SYMMETRY);
+        &state, Network::ensemble::DIRECT, Network::IDENTITY_SYMMETRY);
     step.net_score = result.score;
 
     const auto& best_node = root.get_best_root_child(step.to_move);
@@ -302,7 +302,7 @@ void Training::dump_debug(OutputChunker& outchunk) {
     {
         auto out = std::stringstream{};
         out << "2" << std::endl; // File format version
-        out << cfg_resignpct << " " << cfg_weightsfile << std::endl;
+        out << cfg_resign_pct << " " << cfg_weights_file << std::endl;
         debug_str.append(out.str());
     }
     for (const auto& step : m_data) {
@@ -370,7 +370,7 @@ void Training::dump_supervised(const std::string& sgf_name,
     std::cout << "Total games in file: " << gametotal << std::endl;
     // Shuffle games around
     std::cout << "Shuffling...";
-    std::shuffle(begin(games), end(games), Random::get_Rng());
+    std::shuffle(begin(games), end(games), Random::get_rng());
     std::cout << "done." << std::endl;
 
     Time start;

@@ -364,7 +364,7 @@ unsigned int TimeControl::get_moves_expected(const int board_size, const size_t 
 	auto board_div = 5;
 
 	// We will take early exits with time management on, so it's OK to make our base time bigger
-	if (cfg_timemanage != TimeManagement::OFF)
+	if (cfg_time_manage != TimeManagement::OFF)
 		board_div = 9;
 
 	// Note this is constant as we play, so it's fair to underestimate quite a bit
@@ -374,7 +374,7 @@ unsigned int TimeControl::get_moves_expected(const int board_size, const size_t 
 	const auto fast_moves = opening_moves(board_size);
 
 	if (move_number < fast_moves)
-		return base_remaining + fast_moves - move_number;
+		return base_remaining + static_cast<int>(fast_moves) - static_cast<int>(move_number);
 
 	return base_remaining;
 }

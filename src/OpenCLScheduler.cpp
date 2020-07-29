@@ -258,8 +258,8 @@ void OpenCLScheduler<net_t>::push_weights(
     }
 
     // Output head convolutions
-    push_convolve(1, outputs, Network::OUTPUTS_POLICY, weights->m_conv_pol_w);
-    push_convolve(1, outputs, Network::OUTPUTS_VALUE, weights->m_conv_val_w);
+    push_convolve(1, outputs, Network::OUTPUTS_POLICY, weights->m_conv_pol_weights);
+    push_convolve(1, outputs, Network::OUTPUTS_VALUE, weights->m_conv_val_weights);
 }
 
 template <typename net_t>

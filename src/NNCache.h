@@ -38,80 +38,83 @@
 #include <mutex>
 #include <unordered_map>
 
-class NNCache {
+/// Base class for the neural network cache
+class NNCache
+{
 public:
 
-    // Maximum size of the cache in number of items.
+    /// Maximum size of the cache in number of items
     static constexpr int MAX_CACHE_COUNT = 150'000;
 
-    // Minimum size of the cache in number of items.
+    /// Minimum size of the cache in number of items
     static constexpr int MIN_CACHE_COUNT = 6'000;
 
-    struct Netresult {
-        // BOARD_SIZE*BOARD_SIZE board positions
-        std::array<float, NUM_INTERSECTIONS> policy;
+	/// Result of the network evaluation (a score and if to pass or not)
+    struct Netresult
+	{
+        /// BOARD_SIZE * BOARD_SIZE possible board positions
+        std::array<float, NUM_INTERSECTIONS> policy{};
 
-        // pass
         float policy_pass;
-
-        // score
         float score;
 
-        Netresult() : policy_pass(0.0f), score(0.0f) {
+        Netresult() : policy_pass(0.0f), score(0.0f)
+    	{
             policy.fill(0.0f);
         }
     };
 
-    static constexpr size_t ENTRY_SIZE =
-          sizeof(Netresult)
-        + sizeof(std::uint64_t)
-        + sizeof(std::unique_ptr<Netresult>);
+    static constexpr size_t ENTRY_SIZE = sizeof(Netresult) + sizeof(std::uint64_t) + sizeof(std::unique_ptr<Netresult>);
 
-    NNCache(int size = MAX_CACHE_COUNT);  // ~ 208MiB
+	/// Size of ~ 208MiB
+    explicit NNCache(int size = MAX_CACHE_COUNT); 
 
-    // Set a reasonable size gives max number of playouts
+	/// Insert a new entry into the cache
+	void insert(std::uint64_t hash, const Netresult& result);
+	/// Try to find an existing entry in the cache, returns false if not found
+	bool lookup(std::uint64_t hash, Netresult & result);
+
+	/// Resize NNCache to the given size
+	void resize(int size);
+    /// Set a reasonable size gives max number of playouts
     void set_size_from_playouts(int max_playouts);
-
-    // Resize NNCache
-    void resize(int size);
+	/// Clear NNCache
     void clear();
-
-    // Try and find an existing entry.
-    bool lookup(std::uint64_t hash, Netresult & result);
-
-    // Insert a new entry.
-    void insert(std::uint64_t hash,
-                const Netresult& result);
-
-    // Return the hit rate ratio.
-    std::pair<int, int> hit_rate() const {
+    /// Return the hit rate ratio of the cache
+    std::pair<int, int> hit_rate() const
+	{
         return {m_hits, m_lookups};
     }
+	/// Print the cache statistics
+    void dump_statistics() const;
 
-    void dump_stats();
-
-    // Return the estimated memory consumption of the cache.
-    size_t get_estimated_size();
+	// Getter methods
+	
+    /// Return the estimated memory consumption of the cache
+    size_t get_estimated_size() const;
+	
 private:
 
     std::mutex m_mutex;
-
     size_t m_size;
 
     // Statistics
+	
     int m_hits{0};
     int m_lookups{0};
     int m_inserts{0};
 
-    struct Entry {
-        Entry(const Netresult& r)
-            : result(r) {}
-        Netresult result;  // ~ 1.4KiB
+	/// Struct defining an entry into the cache
+    struct Entry
+	{
+		explicit Entry(const Netresult& r): result(r) {}
+		/// Size of ~ 1.4KiB
+    	Netresult result;  
     };
 
-    // Map from hash to {features, result}
+    /// Map from hash to (features, result)
     std::unordered_map<std::uint64_t, std::unique_ptr<const Entry>> m_cache;
-    // Order entries were added to the map.
+    /// Order in which entries were added to the map
     std::deque<size_t> m_order;
 };
 
