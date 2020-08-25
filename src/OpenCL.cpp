@@ -168,8 +168,8 @@ void OpenCL_Network<net_t>::forward(const std::vector<float>& input,
         const auto vwm = m_opencl.m_sgemm_tuners.vwm;
         const auto vwn = m_opencl.m_sgemm_tuners.vwn;
 
-        const auto m_ceil = ceilMultiple(ceilMultiple(max_channels, mwg), vwm);
-        const auto n_ceil = ceilMultiple(ceilMultiple(tiles, nwg), vwn);
+        const auto m_ceil = ceil_multiple(ceil_multiple(max_channels, mwg), vwm);
+        const auto n_ceil = ceil_multiple(ceil_multiple(tiles, nwg), vwn);
 
         const auto alloc_inSize =
             getOpenCL().m_batch_size * NUM_INTERSECTIONS * max_channels * sizeof(net_t);
@@ -376,12 +376,12 @@ void OpenCL_Network<net_t>::convolve3(OpenCLContext & opencl_context,
 
     constexpr auto tiles = WINOGRAD_P;
 
-    auto wgs = ceilMultiple(batch_size * tiles, wavefront_size);
-    auto wgs_single = ceilMultiple(tiles, wavefront_size);
+    auto wgs = ceil_multiple(batch_size * tiles, wavefront_size);
+    auto wgs_single = ceil_multiple(tiles, wavefront_size);
 
-    auto m_ceil = int(ceilMultiple(ceilMultiple(outputs, mwg), vwm));
-    auto n_ceil = int(ceilMultiple(ceilMultiple(batch_size * tiles, nwg), vwn));
-    auto k_ceil = int(ceilMultiple(ceilMultiple(channels, kwg), vwm));
+    auto m_ceil = int(ceil_multiple(ceil_multiple(outputs, mwg), vwm));
+    auto n_ceil = int(ceil_multiple(ceil_multiple(batch_size * tiles, nwg), vwn));
+    auto k_ceil = int(ceil_multiple(ceil_multiple(channels, kwg), vwm));
 
     cl::CommandQueue & queue = opencl_context.m_commandqueue;
 
@@ -448,7 +448,7 @@ void OpenCL_Network<net_t>::convolve3(OpenCLContext & opencl_context,
             out_transform_bn_in_kernel.setArg(4, m_ceil);
             out_transform_bn_in_kernel.setArg(5, n_ceil);
             // k_ceil of the next convolution
-            auto k_ceil2 = int(ceilMultiple(ceilMultiple(outputs, kwg), vwm));
+            auto k_ceil2 = int(ceil_multiple(ceil_multiple(outputs, kwg), vwm));
             out_transform_bn_in_kernel.setArg(6, k_ceil2);
             if (bufferResidual) {
                 out_transform_bn_in_kernel.setArg(7, *bufferResidual);
@@ -481,8 +481,8 @@ void OpenCL_Network<net_t>::convolve3(OpenCLContext & opencl_context,
             // This could be tuned.
             cl::NDRange local_out = {32, 2};
 
-            cl::NDRange global_out = {ceilMultiple(outputs, local_out[0]),
-                                      ceilMultiple(tiles * batch_size, local_out[1])};
+            cl::NDRange global_out = {ceil_multiple(outputs, local_out[0]),
+                                      ceil_multiple(tiles * batch_size, local_out[1])};
 
             queue.enqueueNDRangeKernel(out_transform_bn_kernel, cl::NullRange,
                                        global_out,

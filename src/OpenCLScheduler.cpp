@@ -36,7 +36,7 @@
 #include "Utils.h"
 #include "OpenCLScheduler.h"
 
-using Utils::ceilMultiple;
+using Utils::ceil_multiple;
 using Utils::myprintf;
 
 class from_float{
@@ -171,8 +171,8 @@ void OpenCLScheduler<net_t>::push_input_convolution(
         const auto kwg = tuners[2];
         const auto vwm = tuners[3];
 
-        const auto m_ceil = ceilMultiple(ceilMultiple(outputs, mwg), vwm);
-        const auto k_ceil = ceilMultiple(ceilMultiple(channels, kwg), vwm);
+        const auto m_ceil = ceil_multiple(ceil_multiple(outputs, mwg), vwm);
+        const auto k_ceil = ceil_multiple(ceil_multiple(channels, kwg), vwm);
 
         const auto Upad = zeropad_U<net_t>(weights,
                                            outputs, channels,
@@ -200,7 +200,7 @@ void OpenCLScheduler<net_t>::push_residual(unsigned int filter_size,
         const auto mwg = tuners[0];
         const auto vwm = tuners[3];
 
-        const auto m_ceil = ceilMultiple(ceilMultiple(outputs, mwg), vwm);
+        const auto m_ceil = ceil_multiple(ceil_multiple(outputs, mwg), vwm);
         const auto Upad1 = zeropad_U<net_t>(weights_1,
                                             outputs, outputs,
                                             m_ceil, m_ceil);

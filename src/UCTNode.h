@@ -30,34 +30,30 @@
 #ifndef UCTNODE_H_INCLUDED
 #define UCTNODE_H_INCLUDED
 
-#include "config.h"
-
 #include <atomic>
 #include <memory>
 #include <vector>
-#include <cassert>
-#include <cstring>
 
 #include "GameState.h"
 #include "Network.h"
-#include "SMP.h"
 #include "UCTNodePointer.h"
 
-class UCTNode {
+class UCTNode
+{
 public:
-    // When we visit a node, add this amount of virtual losses
-    // to it to encourage other CPUs to explore other parts of the
-    // search tree.
+	
+    /// When we visit a node, add this amount of virtual losses
+    /// to it to encourage other CPUs to explore other parts of the
+    /// search tree.
     static constexpr auto VIRTUAL_LOSS_COUNT = 3;
+	
     // Defined in UCTNode.cpp
+	
     explicit UCTNode(int vertex, float policy);
     UCTNode() = delete;
     ~UCTNode() = default;
 
-    bool create_children(Network & network,
-                         std::atomic<int>& nodecount,
-                         GameState& state, float& eval,
-                         float min_psa_ratio = 0.0f);
+    bool create_children(Network & network, std::atomic<int>& node_count, GameState& state, float& eval, float min_psa_ratio = 0.0f);
 
     const std::vector<UCTNodePointer>& get_children() const;
     void sort_children(int color, float lcb_min_visits);
@@ -67,9 +63,9 @@ public:
     size_t count_nodes_and_clear_expand_state();
     bool first_visit() const;
     bool has_children() const;
-    bool expandable(const float min_psa_ratio = 0.0f) const;
+    bool expandable(float min_psa_ratio = 0.0f) const;
     void invalidate();
-    void set_active(const bool active);
+    void set_active(bool active);
     bool valid() const;
     bool active() const;
     int get_move() const;
@@ -77,35 +73,37 @@ public:
     float get_policy() const;
     void set_policy(float policy);
     float get_eval_variance(float default_var = 0.0f) const;
-    float get_eval(int tomove) const;
-    float get_raw_eval(int tomove, int virtual_loss = 0) const;
-    float get_net_eval(int tomove) const;
+    float get_eval(int to_move) const;
+    float get_raw_eval(int to_move, int virtual_loss = 0) const;
+    float get_net_eval(int to_move) const;
     void virtual_loss();
     void virtual_loss_undo();
     void update(float eval);
     float get_eval_lcb(int color) const;
 
     // Defined in UCTNodeRoot.cpp, only to be called on m_root in UCTSearch
+	
     void randomize_first_proportionally();
-    void prepare_root_node(Network & network, int color,
-                           std::atomic<int>& nodecount,
-                           GameState& state);
+    void prepare_root_node(Network & network, int color, std::atomic<int>& node_count, GameState& state);
 
     UCTNode* get_first_child() const;
-    UCTNode* get_nopass_child(FastState& state) const;
-    std::unique_ptr<UCTNode> find_child(const int move);
-    void inflate_all_children();
+    UCTNode* get_no_pass_child(FastState& state) const;
+    std::unique_ptr<UCTNode> find_child(int move);
+    void inflate_all_children() const;
 
-    void clear_expand_state();
+    //void clear_expand_state();
+	
 private:
-    enum Status : char {
-        INVALID, // superko
+	
+    enum Status : char
+	{
+		/// super-ko
+        INVALID, 
         PRUNED,
         ACTIVE
     };
-    void link_nodelist(std::atomic<int>& nodecount,
-                       std::vector<Network::policy_vertex_pair>& nodelist,
-                       float min_psa_ratio);
+	
+    void link_nodelist(std::atomic<int>& node_count, std::vector<Network::policy_vertex_pair>& nodelist, float min_psa_ratio);
     double get_blackevals() const;
     void accumulate_eval(float eval);
     void kill_superkos(const GameState& state);
@@ -116,56 +114,66 @@ private:
     // if you want to add/remove/reorder any variables here.
 
     // Move
+	
     std::int16_t m_move;
+	
     // UCT
+	
     std::atomic<std::int16_t> m_virtual_loss{0};
     std::atomic<int> m_visits{0};
-    // UCT eval
+	
+    /// UCT eval
     float m_policy;
+	
     // Original net eval for this node (not children).
     // TODO: don't know if following starting eval should be changed
     float m_net_eval{0.0f};
-    // Variable used for calculating variance of evaluations.
-    // Initialized to small non-zero value to avoid accidental zero variances
-    // at low visits.
+	
+    /// Variable used for calculating variance of evaluations.
+    /// Initialized to small non-zero value to avoid accidental zero variances
+    /// at low visits.
     std::atomic<float> m_squared_eval_diff{1e-4f};
+	
     std::atomic<double> m_blackevals{0.0};
     std::atomic<Status> m_status{ACTIVE};
 
-    // m_expand_state acts as the lock for m_children.
-    // see manipulation methods below for possible state transition
-    enum class ExpandState : std::uint8_t {
-        // initial state, no children
+    /// m_expand_state acts as the lock for m_children.
+    /// See manipulation methods below for possible state transition
+    enum class ExpandState : std::uint8_t
+	{
+        /// Initial state, no children
         INITIAL = 0,
 
-        // creating children.  the thread that changed the node's state to
-        // EXPANDING is responsible of finishing the expansion and then
-        // move to EXPANDED, or revert to INITIAL if impossible
+        /// Creating children. The thread that changed the node's state to
+        /// EXPANDING is responsible of finishing the expansion and then
+        /// move to EXPANDED, or revert to INITIAL if impossible
         EXPANDING,
 
-        // expansion done.  m_children cannot be modified on a multi-thread
-        // context, until node is destroyed.
+        /// Expansion done. m_children cannot be modified on a multi-thread
+        /// context, until node is destroyed.
         EXPANDED,
     };
+	
     std::atomic<ExpandState> m_expand_state{ExpandState::INITIAL};
 
     // Tree data
+	
     std::atomic<float> m_min_psa_ratio_children{2.0f};
     std::vector<UCTNodePointer> m_children;
 
-    //  m_expand_state manipulation methods
-    // INITIAL -> EXPANDING
-    // Return false if current state is not INITIAL
+    /// Manipulation method for m_expand_state
+    /// INITIAL -> EXPANDING
+    /// Return false if current state is not INITIAL
     bool acquire_expanding();
 
-    // EXPANDING -> DONE
+    /// EXPANDING -> DONE
     void expand_done();
 
-    // EXPANDING -> INITIAL
+    /// EXPANDING -> INITIAL
     void expand_cancel();
 
-    // wait until we are on EXPANDED state
-    void wait_expanded();
+    /// Wait until we are on EXPANDED state
+    void wait_expanded() const;
 };
 
 #endif

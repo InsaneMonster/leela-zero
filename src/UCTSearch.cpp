@@ -488,7 +488,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
     if (passflag & UCTSearch::NOPASS) {
         // were we going to pass?
         if (bestmove == FastBoard::PASS) {
-            UCTNode * nopass = m_root->get_nopass_child(m_rootstate);
+            UCTNode * nopass = m_root->get_no_pass_child(m_rootstate);
 
             if (nopass != nullptr) {
                 myprintf("Preferring not to pass.\n");
@@ -529,7 +529,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
             if (relative_score < 0.0f) {
                 myprintf("Passing loses :-(\n");
                 // Find a valid non-pass move.
-                UCTNode * nopass = m_root->get_nopass_child(m_rootstate);
+                UCTNode * nopass = m_root->get_no_pass_child(m_rootstate);
                 if (nopass != nullptr) {
                     myprintf("Avoiding pass because it loses.\n");
                     bestmove = nopass->get_move();
@@ -546,7 +546,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
             } else {
                 myprintf("Passing draws :-|\n");
                 // Find a valid non-pass move.
-                const auto nopass = m_root->get_nopass_child(m_rootstate);
+                const auto nopass = m_root->get_no_pass_child(m_rootstate);
                 if (nopass != nullptr && !nopass->first_visit()) {
                     const auto nopass_eval = nopass->get_raw_eval(color);
                     if (nopass_eval > 0.5f) {

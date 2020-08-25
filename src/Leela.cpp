@@ -44,15 +44,16 @@
 #include "GTP.h"
 #include "GameState.h"
 #include "Network.h"
-#include "NNCache.h"
+#include "SMP.h"
 #include "Random.h"
 #include "ThreadPool.h"
 #include "Utils.h"
-#include "zobrist.h"
+#include "Zobrist.h"
 
 using namespace Utils;
 
-static void license_blurb() {
+static void license_blurb()
+{
     printf(
         "Leela Zero %s  Copyright (C) 2017-2019  Gian-Carlo Pascutto and contributors\n"
         "This program comes with ABSOLUTELY NO WARRANTY.\n"
@@ -61,77 +62,90 @@ static void license_blurb() {
         PROGRAM_VERSION);
 }
 
-static void calculate_thread_count_cpu(boost::program_options::variables_map & vm) {
-    // If we are CPU-based, there is no point using more than the number of CPUs/
-    auto cfg_max_threads = std::min(SMP::get_num_cpus(), size_t{MAX_CPUS});
+static void calculate_thread_count_cpu(boost::program_options::variables_map & vm)
+{
+    // If we are CPU-based, there is no point using more than the number of CPUs
+    const auto cfg_max_threads = static_cast<unsigned>(std::min(SMP::get_num_cpus(), size_t{MAX_CPUS}));
 
-    if (vm["threads"].as<unsigned int>() > 0) {
+    if (vm["threads"].as<unsigned int>() > 0) 
+	{
         auto num_threads = vm["threads"].as<unsigned int>();
-        if (num_threads > cfg_max_threads) {
+        if (num_threads > cfg_max_threads)
+		{
             myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
             num_threads = cfg_max_threads;
         }
+    	
         cfg_num_threads = num_threads;
-    } else {
+    }
+	else 
+	{
         cfg_num_threads = cfg_max_threads;
     }
 }
 
 #ifdef USE_OPENCL
-static void calculate_thread_count_gpu(boost::program_options::variables_map & vm) {
-    auto cfg_max_threads = size_t{MAX_CPUS};
+static void calculate_thread_count_gpu(boost::program_options::variables_map & vm)
+{
+	const auto cfg_max_threads = size_t{MAX_CPUS};
 
     // Default thread count : GPU case
     // 1) if no args are given, use batch size of 5 and thread count of (batch size) * (number of gpus) * 2
     // 2) if number of threads are given, use batch size of (thread count) / (number of gpus) / 2
     // 3) if number of batches are given, use thread count of (batch size) * (number of gpus) * 2
     auto gpu_count = cfg_gpus.size();
-    if (gpu_count == 0) {
-        // size of zero if autodetect GPU : default to 1
+	// Size of zero if autodetect GPU : default to 1
+    if (gpu_count == 0)
         gpu_count = 1;
-    }
 
-    if (vm["threads"].as<unsigned int>() > 0) {
+    if (vm["threads"].as<unsigned int>() > 0) 
+	{
         auto num_threads = vm["threads"].as<unsigned int>();
-        if (num_threads > cfg_max_threads) {
+        if (num_threads > cfg_max_threads) 
+		{
             myprintf("Clamping threads to maximum = %d\n", cfg_max_threads);
             num_threads = cfg_max_threads;
         }
+    	
         cfg_num_threads = num_threads;
 
-        if (vm["batchsize"].as<unsigned int>() > 0) {
+        if (vm["batchsize"].as<unsigned int>() > 0) 
+		{
             cfg_batch_size = vm["batchsize"].as<unsigned int>();
-        } else {
-            cfg_batch_size = (cfg_num_threads + (gpu_count * 2) - 1) / (gpu_count * 2);
+        }
+    	else 
+		{
+            cfg_batch_size = (cfg_num_threads + static_cast<unsigned>(gpu_count * 2) - 1) / static_cast<unsigned>(gpu_count * 2);
 
-            // no idea why somebody wants to use threads less than the number of GPUs
+            // No idea why somebody wants to use threads less than the number of GPUs
             // but should at least prevent crashing
-            if (cfg_batch_size == 0) {
+            if (cfg_batch_size == 0)
                 cfg_batch_size = 1;
-            }
         }
-    } else {
-        if (vm["batchsize"].as<unsigned int>() > 0) {
+    }
+	else 
+	{
+        if (vm["batchsize"].as<unsigned int>() > 0)
             cfg_batch_size = vm["batchsize"].as<unsigned int>();
-        } else {
+        else
             cfg_batch_size = 5;
-        }
 
-        cfg_num_threads = std::min(cfg_max_threads, cfg_batch_size * gpu_count * 2);
+		cfg_num_threads = static_cast<unsigned>(std::min(cfg_max_threads, cfg_batch_size * gpu_count * 2));
     }
 
-    if (cfg_num_threads < cfg_batch_size) {
+    if (cfg_num_threads < cfg_batch_size) 
+	{
         printf("Number of threads = %d must be no smaller than batch size = %d\n", cfg_num_threads, cfg_batch_size);
         exit(EXIT_FAILURE);
     }
-
-
 }
 #endif
 
-static void parse_commandline(int argc, char *argv[]) {
+static void parse_commandline(int argc, char *argv[])
+{
     namespace po = boost::program_options;
-    // Declare the supported options.
+
+	// Declare the supported options
     po::options_description gen_desc("Generic options");
     gen_desc.add_options()
         ("help,h", "Show commandline options.")
@@ -168,32 +182,23 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifdef USE_OPENCL
     po::options_description gpu_desc("OpenCL device options");
     gpu_desc.add_options()
-        ("gpu",  po::value<std::vector<int> >(),
-                "ID of the OpenCL device(s) to use (disables autodetection).")
+        ("gpu",  po::value<std::vector<int> >(), "ID of the OpenCL device(s) to use (disables autodetection).")
         ("full-tuner", "Try harder to find an optimal OpenCL tuning.")
         ("tune-only", "Tune OpenCL only and then exit.")
         ("batchsize", po::value<unsigned int>()->default_value(0), "Max batch size.  Select 0 to let leela-zero pick a reasonable default.")
 #ifdef USE_HALF
-        ("precision", po::value<std::string>(),
-            "Floating-point precision (single/half/auto).\n"
-            "Default is to auto which automatically determines which one to use.")
+        ("precision", po::value<std::string>(), "Floating-point precision (single/half/auto).\n" "Default is to auto which automatically determines which one to use.")
 #endif
         ;
 #endif
     po::options_description selfplay_desc("Self-play options");
     selfplay_desc.add_options()
         ("noise,n", "Enable policy network randomization.")
-        ("seed,s", po::value<std::uint64_t>(),
-                   "Random number generation seed.")
+        ("seed,s", po::value<std::uint64_t>(), "Random number generation seed.")
         ("dumbpass,d", "Don't use heuristics for smarter passing.")
-        ("randomcnt,m", po::value<int>()->default_value(cfg_random_cnt),
-                        "Play more randomly the first x moves.")
-        ("randomvisits",
-            po::value<int>()->default_value(cfg_random_min_visits),
-            "Don't play random moves if they have <= x visits.")
-        ("randomtemp",
-            po::value<float>()->default_value(cfg_random_temp),
-            "Temperature to use for random move selection.")
+        ("randomcnt,m", po::value<int>()->default_value(cfg_random_cnt), "Play more randomly the first x moves.")
+        ("randomvisits", po::value<int>()->default_value(cfg_random_min_visits), "Don't play random moves if they have <= x visits.")
+        ("randomtemp", po::value<float>()->default_value(cfg_random_temp), "Temperature to use for random move selection.")
         ;
 #ifdef USE_TUNER
     po::options_description tuner_desc("Tuning options");
@@ -206,6 +211,7 @@ static void parse_commandline(int argc, char *argv[]) {
         ("ci_alpha", po::value<float>())
         ;
 #endif
+	
     // These won't be shown, we use them to catch incorrect usage of the
     // command line.
     po::options_description ignore("Ignored options");
@@ -227,17 +233,20 @@ static void parse_commandline(int argc, char *argv[]) {
 #else
         ;
 #endif
+	
     // Parse both the above, we will check if any of the latter are present.
     po::options_description all;
     all.add(visible).add(ignore).add(h_desc);
     po::positional_options_description p_desc;
     p_desc.add("arguments", -1);
     po::variables_map vm;
-    try {
-        po::store(po::command_line_parser(argc, argv)
-                  .options(all).positional(p_desc).run(), vm);
+    try 
+	{
+        po::store(po::command_line_parser(argc, argv).options(all).positional(p_desc).run(), vm);
         po::notify(vm);
-    }  catch(const boost::program_options::error& e) {
+    }
+	catch(const boost::program_options::error& e) 
+	{
         printf("ERROR: %s\n", e.what());
         license_blurb();
         std::cout << visible << std::endl;
@@ -245,28 +254,29 @@ static void parse_commandline(int argc, char *argv[]) {
     }
 
     // Handle commandline options
-    if (vm.count("help") || vm.count("arguments")) {
+    if (vm.count("help") || vm.count("arguments")) 
+	{
         auto ev = EXIT_SUCCESS;
-        // The user specified an argument. We don't accept any, so explain
-        // our usage.
-        if (vm.count("arguments")) {
-            for (auto& arg : vm["arguments"].as<std::vector<std::string>>()) {
+        // The user specified an argument. We don't accept any, so explain our usage
+        if (vm.count("arguments"))
+		{
+            for (auto& arg : vm["arguments"].as<std::vector<std::string>>())
                 std::cout << "Unrecognized argument: " << arg << std::endl;
-            }
+        	
             ev = EXIT_FAILURE;
         }
+    	
         license_blurb();
         std::cout << visible << std::endl;
         exit(ev);
     }
 
-    if (vm.count("quiet")) {
+    if (vm.count("quiet"))
         cfg_quiet = true;
-    }
 
-    if (vm.count("benchmark")) {
-        cfg_quiet = true;  // Set this early to avoid unnecessary output.
-    }
+	// Set this early to avoid unnecessary output
+    if (vm.count("benchmark"))
+        cfg_quiet = true;  
 
 #ifdef USE_TUNER
     if (vm.count("puct")) {
@@ -289,22 +299,23 @@ static void parse_commandline(int argc, char *argv[]) {
     }
 #endif
 
-    if (vm.count("logfile")) {
+    if (vm.count("logfile")) 
+	{
         cfg_logfile = vm["logfile"].as<std::string>();
         myprintf("Logging to %s.\n", cfg_logfile.c_str());
         cfg_logfile_handle = fopen(cfg_logfile.c_str(), "a");
     }
 
     cfg_weights_file = vm["weights"].as<std::string>();
-    if (vm["weights"].defaulted() && !boost::filesystem::exists(cfg_weights_file)) {
+    if (vm["weights"].defaulted() && !boost::filesystem::exists(cfg_weights_file)) 
+	{
         printf("A network weights file is required to use the program.\n");
         printf("By default, Leela Zero looks for it in %s.\n", cfg_weights_file.c_str());
         exit(EXIT_FAILURE);
     }
 
-    if (vm.count("gtp")) {
+    if (vm.count("gtp"))
         cfg_gtp_mode = true;
-    }
 
 #ifdef USE_OPENCL
     if (vm.count("gpu")) {
@@ -315,7 +326,7 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_sgemm_exhaustive = true;
 
         // --full-tuner auto-implies --tune-only.  The full tuner is so slow
-        // that nobody will wait for it to finish befure running a game.
+        // that nobody will wait for it to finish before running a game.
         // This simply prevents some edge cases from confusing other people.
         cfg_tune_only = true;
     }
@@ -324,38 +335,52 @@ static void parse_commandline(int argc, char *argv[]) {
         cfg_tune_only = true;
     }
 #ifdef USE_HALF
-    if (vm.count("precision")) {
+    if (vm.count("precision")) 
+	{
         auto precision = vm["precision"].as<std::string>();
-        if ("single" == precision) {
+        if ("single" == precision)
+		{
             cfg_precision = precision_t::SINGLE;
-        } else if ("half" == precision) {
+        }
+    	else if ("half" == precision) 
+		{
             cfg_precision = precision_t::HALF;
-        } else if ("auto" == precision) {
+        }
+    	else if ("auto" == precision)
+		{
             cfg_precision = precision_t::AUTO;
-        } else {
+        }
+    	else 
+		{
             printf("Unexpected option for --precision, expecting single/half/auto\n");
             exit(EXIT_FAILURE);
         }
     }
-    if (cfg_precision == precision_t::AUTO) {
+    if (cfg_precision == precision_t::AUTO) 
+	{
         // Auto precision is not supported for full tuner cases.
-        if (cfg_sgemm_exhaustive) {
+        if (cfg_sgemm_exhaustive) 
+		{
             printf("Automatic precision not supported when doing exhaustive tuning\n");
             printf("Please add '--precision single' or '--precision half'\n");
             exit(EXIT_FAILURE);
         }
     }
 #endif
-    if (vm.count("cpu-only")) {
+    if (vm.count("cpu-only")) 
+	{
         cfg_cpu_only = true;
     }
 #else
     cfg_cpu_only = true;
 #endif
 
-    if (cfg_cpu_only) {
+    if (cfg_cpu_only)
+	{
         calculate_thread_count_cpu(vm);
-    } else {
+    }
+	else 
+	{
 #ifdef USE_OPENCL
         calculate_thread_count_gpu(vm);
         myprintf("Using OpenCL batch size of %d\n", cfg_batch_size);
@@ -363,139 +388,151 @@ static void parse_commandline(int argc, char *argv[]) {
     }
     myprintf("Using %d thread(s).\n", cfg_num_threads);
 
-    if (vm.count("seed")) {
+    if (vm.count("seed"))
+	{
         cfg_rng_seed = vm["seed"].as<std::uint64_t>();
-        if (cfg_num_threads > 1) {
+    	
+        if (cfg_num_threads > 1) 
+		{
             myprintf("Seed specified but multiple threads enabled.\n");
             myprintf("Games will likely not be reproducible.\n");
         }
     }
     myprintf("RNG seed: %llu\n", cfg_rng_seed);
 
-    if (vm.count("noponder")) {
+    if (vm.count("noponder"))
         cfg_allow_pondering = false;
-    }
 
-    if (vm.count("noise")) {
+    if (vm.count("noise"))
         cfg_noise = true;
-    }
 
-    if (vm.count("dumbpass")) {
+    if (vm.count("dumbpass"))
         cfg_dumb_pass = true;
-    }
 
-    if (vm.count("playouts")) {
+    if (vm.count("playouts")) 
+	{
         cfg_max_playouts = vm["playouts"].as<int>();
-        if (!vm.count("noponder")) {
-            printf("Nonsensical options: Playouts are restricted but "
-                   "thinking on the opponent's time is still allowed. "
-                   "Add --noponder if you want a weakened engine.\n");
+        if (!vm.count("noponder")) 
+		{
+            printf("Nonsensical options: Playouts are restricted but thinking on the opponent's time is still allowed. Add --noponder if you want a weakened engine.\n");
             exit(EXIT_FAILURE);
         }
 
         // 0 may be specified to mean "no limit"
-        if (cfg_max_playouts == 0) {
+        if (cfg_max_playouts == 0)
             cfg_max_playouts = UCTSearch::UNLIMITED_PLAYOUTS;
-        }
     }
 
-    if (vm.count("visits")) {
+    if (vm.count("visits")) 
+	{
         cfg_max_visits = vm["visits"].as<int>();
 
         // 0 may be specified to mean "no limit"
-        if (cfg_max_visits == 0) {
+        if (cfg_max_visits == 0)
             cfg_max_visits = UCTSearch::UNLIMITED_PLAYOUTS;
-        }
     }
 
-    if (vm.count("resignpct")) {
+    if (vm.count("resignpct"))
         cfg_resign_pct = vm["resignpct"].as<int>();
-    }
 
-    if (vm.count("randomcnt")) {
+    if (vm.count("randomcnt"))
         cfg_random_cnt = vm["randomcnt"].as<int>();
-    }
 
-    if (vm.count("randomvisits")) {
+    if (vm.count("randomvisits"))
         cfg_random_min_visits = vm["randomvisits"].as<int>();
-    }
 
-    if (vm.count("randomtemp")) {
+    if (vm.count("randomtemp"))
         cfg_random_temp = vm["randomtemp"].as<float>();
-    }
 
-    if (vm.count("timemanage")) {
+    if (vm.count("timemanage"))
+	{
         auto tm = vm["timemanage"].as<std::string>();
-        if (tm == "auto") {
+        if (tm == "auto") 
+		{
             cfg_time_manage = TimeManagement::AUTO;
-        } else if (tm == "on") {
+        }
+    	else if (tm == "on") 
+		{
             cfg_time_manage = TimeManagement::ON;
-        } else if (tm == "off") {
+        }
+    	else if (tm == "off")
+		{
             cfg_time_manage = TimeManagement::OFF;
-        } else if (tm == "fast") {
+        }
+    	else if (tm == "fast") 
+		{
             cfg_time_manage = TimeManagement::FAST;
-        } else if (tm == "no_pruning") {
+        }
+    	else if (tm == "no_pruning")
+		{
             cfg_time_manage = TimeManagement::NO_PRUNING;
-        } else {
+        }
+    	else 
+		{
             printf("Invalid timemanage value.\n");
             exit(EXIT_FAILURE);
         }
     }
-    if (cfg_time_manage == TimeManagement::AUTO) {
-        cfg_time_manage =
-            cfg_noise ? TimeManagement::NO_PRUNING : TimeManagement::ON;
-    }
+	
+    if (cfg_time_manage == TimeManagement::AUTO) 
+        cfg_time_manage = cfg_noise ? TimeManagement::NO_PRUNING : TimeManagement::ON;
 
-    if (vm.count("lagbuffer")) {
-        int lagbuffer = vm["lagbuffer"].as<int>();
-        if (lagbuffer != cfg_lag_buffer_cs) {
-            myprintf("Using per-move time margin of %.2fs.\n",
-                     lagbuffer/100.0f);
+    if (vm.count("lagbuffer")) 
+	{
+		auto lagbuffer = vm["lagbuffer"].as<int>();
+        if (lagbuffer != cfg_lag_buffer_cs) 
+		{
+            myprintf("Using per-move time margin of %.2fs.\n", lagbuffer/100.0f);
             cfg_lag_buffer_cs = lagbuffer;
         }
     }
-    if (vm.count("benchmark")) {
+    if (vm.count("benchmark")) 
+	{
         // These must be set later to override default arguments.
         cfg_allow_pondering = false;
         cfg_benchmark = true;
-        cfg_noise = false;  // Not much of a benchmark if random was used.
+		// Not much of a benchmark if random was used.
+        cfg_noise = false;  
         cfg_random_cnt = 0;
         cfg_rng_seed = 1;
-        cfg_time_manage = TimeManagement::OFF;  // Reliable number of playouts.
+    	// Reliable number of playouts.
+        cfg_time_manage = TimeManagement::OFF;  
 
-        if (!vm.count("playouts") && !vm.count("visits")) {
-            cfg_max_visits = 3200; // Default to self-play and match values.
-        }
+		// Default to self-play and match values.
+        if (!vm.count("playouts") && !vm.count("visits"))
+            cfg_max_visits = 3200; 
     }
 
     // Do not lower the expected eval for root moves that are likely not
-    // the best if we have introduced noise there exactly to explore more.
+    // the best if we have introduced noise there exactly to explore more
     cfg_fpu_root_reduction = cfg_noise ? 0.0f : cfg_fpu_reduction;
 
     auto out = std::stringstream{};
-    for (auto i = 1; i < argc; i++) {
+    for (auto i = 1; i < argc; i++)
         out << " " << argv[i];
-    }
-    if (!vm.count("seed")) {
+	
+    if (!vm.count("seed"))
         out << " --seed " << cfg_rng_seed;
-    }
+	
     cfg_options_str = out.str();
 }
 
-static void initialize_network() {
+static void initialize_network()
+{
     auto network = std::make_unique<Network>();
-    auto playouts = std::min(cfg_max_playouts, cfg_max_visits);
+    const auto playouts = std::min(cfg_max_playouts, cfg_max_visits);
     network->initialize(playouts, cfg_weights_file);
 
     GTP::initialize(std::move(network));
 }
 
 // Setup global objects after command line has been parsed
-void init_global_objects() {
+void init_global_objects()
+{
     thread_pool.initialize(cfg_num_threads);
 
     // Use deterministic random numbers for hashing
-    auto rng = std::make_unique<Random>(5489);
+    const auto rng = std::make_unique<Random>(5489);
     Zobrist::init_zobrist(*rng);
 
     // Initialize the main thread RNG.
@@ -503,13 +540,15 @@ void init_global_objects() {
     // improves reproducibility across platforms.
     Random::get_rng().random_seed(cfg_rng_seed);
 
-    Utils::create_z_table();
+    create_z_table();
 
     initialize_network();
 }
 
-void benchmark(GameState& game) {
-    game.set_time_control(0, 1, 0, 0);  // Set infinite time.
+void benchmark(GameState& game)
+{
+	// Set infinite time.
+    game.set_time_control(0, 1, 0, 0);  
     game.play_text("b", "r16");
     game.play_text("w", "d4");
     game.play_text("b", "c3");
@@ -519,7 +558,8 @@ void benchmark(GameState& game) {
     search->think(FastBoard::WHITE);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     // Set up engine parameters
     GTP::setup_default_parameters();
     parse_commandline(argc, argv);
@@ -535,41 +575,47 @@ int main(int argc, char *argv[]) {
     setbuf(stdin, nullptr);
 #endif
 
-    if (!cfg_gtp_mode && !cfg_benchmark) {
+    if (!cfg_gtp_mode && !cfg_benchmark)
         license_blurb();
-    }
 
     init_global_objects();
 
-    auto maingame = std::make_unique<GameState>();
+    auto main_game = std::make_unique<GameState>();
 
-    /* set board limits */
-    maingame->init_game(BOARD_SIZE, KOMI);
+    // set board limits
+    main_game->init_game(BOARD_SIZE, KOMI);
 
-    if (cfg_benchmark) {
+    if (cfg_benchmark) 
+	{
         cfg_quiet = false;
-        benchmark(*maingame);
+        benchmark(*main_game);
         return 0;
     }
 
-    for (;;) {
-        if (!cfg_gtp_mode) {
-            maingame->display_state();
+    for (;;) 
+	{
+        if (!cfg_gtp_mode) 
+		{
+            main_game->display_state();
             std::cout << "Leela: ";
         }
 
         auto input = std::string{};
-        if (std::getline(std::cin, input)) {
-            Utils::log_input(input);
-            GTP::execute(*maingame, input);
-        } else {
-            // eof or other error
+        if (std::getline(std::cin, input)) 
+		{
+            log_input(input);
+            GTP::execute(*main_game, input);
+        }
+    	else 
+		{
+            // Eof or other error
             std::cout << std::endl;
             break;
         }
 
         // Force a flush of the logfile
-        if (cfg_logfile_handle) {
+        if (cfg_logfile_handle) 
+		{
             fclose(cfg_logfile_handle);
             cfg_logfile_handle = fopen(cfg_logfile.c_str(), "a");
         }

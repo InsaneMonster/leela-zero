@@ -38,7 +38,7 @@
 #include <boost/math/distributions/students_t.hpp>
 
 #ifdef _WIN32
-#include <windows.h>
+#include <Windows.h>
 #else
 #include <sys/select.h>
 #include <unistd.h>
@@ -53,28 +53,31 @@ Utils::ThreadPool thread_pool;
 auto constexpr z_entries = 1000;
 std::array<float, z_entries> z_lookup;
 
-void Utils::create_z_table() {
-    for (auto i = 1; i < z_entries + 1; i++) {
+void Utils::create_z_table()
+{
+    for (auto i = 1; i < z_entries + 1; i++)
+	{
         boost::math::students_t dist(i);
-        auto z = boost::math::quantile(boost::math::complement(dist, cfg_ci_alpha));
-        z_lookup[i - 1] = z;
+        const auto z = quantile(complement(dist, cfg_ci_alpha));
+        z_lookup[i - 1] = static_cast<float>(z);
     }
 }
 
-float Utils::cached_t_quantile(int v) {
-    if (v < 1) {
+float Utils::cached_t_quantile(const int v)
+{
+    if (v < 1) 
         return z_lookup[0];
-    }
-    if (v < z_entries) {
+    if (v < z_entries) 
         return z_lookup[v - 1];
-    }
+	
     // z approaches constant when v is high enough.
     // With default lookup table size the function is flat enough that we
     // can just return the last entry for all v bigger than it.
     return z_lookup[z_entries - 1];
 }
 
-bool Utils::input_pending() {
+bool Utils::input_pending()
+{
 #ifdef HAVE_SELECT
     fd_set read_fds;
     FD_ZERO(&read_fds);
@@ -87,54 +90,61 @@ bool Utils::input_pending() {
     static HANDLE inh;
     DWORD dw;
 
-    if (!init) {
+    if (!init) 
+	{
         init = 1;
         inh = GetStdHandle(STD_INPUT_HANDLE);
         pipe = !GetConsoleMode(inh, &dw);
-        if (!pipe) {
+        if (!pipe) 
+		{
             SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
             FlushConsoleInputBuffer(inh);
         }
     }
 
-    if (pipe) {
-        if (!PeekNamedPipe(inh, nullptr, 0, nullptr, &dw, nullptr)) {
+    if (pipe) 
+	{
+        if (!PeekNamedPipe(inh, nullptr, 0, nullptr, &dw, nullptr)) 
+		{
             myprintf("Nothing at other end - exiting\n");
             exit(EXIT_FAILURE);
         }
 
         return dw;
-    } else {
-        if (!GetNumberOfConsoleInputEvents(inh, &dw)) {
-            myprintf("Nothing at other end - exiting\n");
-            exit(EXIT_FAILURE);
-        }
-
-        return dw > 1;
     }
-    return false;
+	
+    if (!GetNumberOfConsoleInputEvents(inh, &dw)) 
+	{
+        myprintf("Nothing at other end - exiting\n");
+        exit(EXIT_FAILURE);
+    }
+
+    return dw > 1;
 #endif
 }
 
 static std::mutex IOmutex;
 
-static void myprintf_base(const char *fmt, va_list ap) {
+static void myprintf_base(const char *fmt, va_list ap)
+{
     va_list ap2;
     va_copy(ap2, ap);
 
     vfprintf(stderr, fmt, ap);
 
-    if (cfg_logfile_handle) {
+    if (cfg_logfile_handle) 
+	{
         std::lock_guard<std::mutex> lock(IOmutex);
         vfprintf(cfg_logfile_handle, fmt, ap2);
     }
+	
     va_end(ap2);
 }
 
-void Utils::myprintf(const char *fmt, ...) {
-    if (cfg_quiet) {
+void Utils::myprintf(const char *fmt, ...)
+{
+    if (cfg_quiet)
         return;
-    }
 
     va_list ap;
     va_start(ap, fmt);
@@ -142,46 +152,52 @@ void Utils::myprintf(const char *fmt, ...) {
     va_end(ap);
 }
 
-void Utils::myprintf_error(const char *fmt, ...) {
+void Utils::myprintf_error(const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     myprintf_base(fmt, ap);
     va_end(ap);
 }
 
-static void gtp_fprintf(FILE* file, const std::string& prefix,
-                        const char *fmt, va_list ap) {
+static void gtp_fprintf(FILE* file, const std::string& prefix, const char *fmt, va_list ap)
+{
     fprintf(file, "%s ", prefix.c_str());
     vfprintf(file, fmt, ap);
     fprintf(file, "\n\n");
 }
 
-static void gtp_base_printf(int id, std::string prefix,
-                            const char *fmt, va_list ap) {
-    if (id != -1) {
+static void gtp_base_printf(const int id, std::string prefix, const char *fmt, va_list ap)
+{
+    if (id != -1)
         prefix += std::to_string(id);
-    }
+	
     gtp_fprintf(stdout, prefix, fmt, ap);
-    if (cfg_logfile_handle) {
+	
+    if (cfg_logfile_handle) 
+	{
         std::lock_guard<std::mutex> lock(IOmutex);
         gtp_fprintf(cfg_logfile_handle, prefix, fmt, ap);
     }
 }
 
-void Utils::gtp_printf(int id, const char *fmt, ...) {
+void Utils::gtp_printf(const int id, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     gtp_base_printf(id, "=", fmt, ap);
     va_end(ap);
 }
 
-void Utils::gtp_printf_raw(const char *fmt, ...) {
+void Utils::gtp_printf_raw(const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stdout, fmt, ap);
     va_end(ap);
 
-    if (cfg_logfile_handle) {
+    if (cfg_logfile_handle)
+	{
         std::lock_guard<std::mutex> lock(IOmutex);
         va_start(ap, fmt);
         vfprintf(cfg_logfile_handle, fmt, ap);
@@ -189,38 +205,44 @@ void Utils::gtp_printf_raw(const char *fmt, ...) {
     }
 }
 
-void Utils::gtp_fail_printf(int id, const char *fmt, ...) {
+void Utils::gtp_fail_printf(const int id, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     gtp_base_printf(id, "?", fmt, ap);
     va_end(ap);
 }
 
-void Utils::log_input(const std::string& input) {
-    if (cfg_logfile_handle) {
+void Utils::log_input(const std::string& input)
+{
+    if (cfg_logfile_handle) 
+	{
         std::lock_guard<std::mutex> lock(IOmutex);
         fprintf(cfg_logfile_handle, ">>%s\n", input.c_str());
     }
 }
 
-size_t Utils::ceilMultiple(size_t a, size_t b) {
-    if (a % b == 0) {
+size_t Utils::ceil_multiple(const size_t a, const size_t b)
+{
+    if (a % b == 0)
         return a;
-    }
 
-    auto ret = a + (b - a % b);
-    return ret;
+    return a + (b - a % b);
 }
 
-const std::string Utils::leelaz_file(std::string file) {
+std::string Utils::leelaz_file(const std::string file)
+{
 #if defined(_WIN32) || defined(__ANDROID__)
     boost::filesystem::path dir(boost::filesystem::current_path());
 #else
     // https://stackoverflow.com/a/26696759
     const char *homedir;
-    if ((homedir = getenv("HOME")) == nullptr) {
+    if ((homedir = getenv("HOME")) == nullptr) 
+	{
         struct passwd *pwd;
-        if ((pwd = getpwuid(getuid())) == nullptr) { // NOLINT(runtime/threadsafe_fn)
+        if ((pwd = getpwuid(getuid())) == nullptr) 
+		{
+        	// NOLINT(runtime/threadsafe_fn)
             return std::string();
         }
         homedir = pwd->pw_dir;
