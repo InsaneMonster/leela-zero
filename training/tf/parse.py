@@ -140,7 +140,7 @@ def main():
 
     # Define the CUDA devices in which to run the experiment
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     # Define the logger
     logger: logging.Logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -155,7 +155,7 @@ def main():
             os.makedirs(logdir)
         except FileExistsError:
             pass
-    file_handler: logging.FileHandler = logging.FileHandler(logdir + "/info.log", "w+")
+    file_handler: logging.FileHandler = logging.FileHandler(logdir + "/info.log", "a+")
     # Set handlers properties
     console_handler.setLevel(logging.DEBUG)
     file_handler.setLevel(logging.DEBUG)

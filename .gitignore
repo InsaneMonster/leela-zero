@@ -18,3 +18,6 @@ build/
 /initial_9x9.txt
 /training/LeelaScore
 /training
+/msvc/VS2017/best-network-old
+/msvc/VS2017/best-network-old-old
+*.DotSettings
