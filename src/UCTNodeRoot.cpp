@@ -99,12 +99,12 @@ void UCTNode::dirichlet_noise(const float epsilon, const float alpha)
     auto child_cnt = m_children.size();
 
     auto dirichlet_vector = std::vector<float>{};
-    const std::gamma_distribution<float> gamma(alpha, 1.0f);
+    std::gamma_distribution<float> gamma(alpha, 1.0f);
 	
     for (size_t i = 0; i < child_cnt; i++)
         dirichlet_vector.emplace_back(gamma(Random::get_rng()));
 
-    const auto sample_sum = std::accumulate(begin(dirichlet_vector), end(dirichlet_vector), 0.0f);
+    auto sample_sum = std::accumulate(begin(dirichlet_vector), end(dirichlet_vector), 0.0f);
 
     // If the noise vector sums to 0 or a de-normal, then don't try to normalize.
     if (sample_sum < std::numeric_limits<float>::min())
@@ -149,8 +149,8 @@ void UCTNode::randomize_first_proportionally()
         }
     }
 
-    const auto distribution = std::uniform_real_distribution<double>{0.0, accumulator};
-    const auto pick = distribution(Random::get_rng());
+    auto distribution = std::uniform_real_distribution<double>{0.0, accumulator};
+    auto pick = distribution(Random::get_rng());
     auto index = size_t{0};
 	
     for (size_t i = 0; i < accumulator_vector.size(); i++) 
