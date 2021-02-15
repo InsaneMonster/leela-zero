@@ -72,7 +72,6 @@
 
 #ifdef USE_OPENCL
 #include "OpenCLScheduler.h"
-#include "UCTNode.h"
 #endif
 
 

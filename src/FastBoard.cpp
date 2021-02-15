@@ -41,6 +41,12 @@
 
 using namespace Utils;
 
+const int FastBoard::NEIGHBOR_SHIFT;
+const int FastBoard::VERTICES_NUMBER;
+const int FastBoard::NO_VERTEX;
+const int FastBoard::PASS;
+const int FastBoard::RESIGN;
+
 const std::array<int, 2> FastBoard::s_eye_mask = 
 {
     4 * (1 << (NEIGHBOR_SHIFT * BLACK)),
