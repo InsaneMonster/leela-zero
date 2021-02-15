@@ -53,7 +53,7 @@ public:
     /// No applicable vertex
     static constexpr int NO_VERTEX = 0;
     /// Vertex of a pass
-    static constexpr int PASS   = -1;
+    static constexpr int PASS = -1;
     /// Vertex of a resign move
     static constexpr int RESIGN = -2;
 
