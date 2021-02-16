@@ -86,7 +86,7 @@ public:
         // Initialize the main thread RNG.
         // Doing this here avoids mixing in the thread_id, which
         // improves reproducibility across platforms.
-        Random::get_rng().seedrandom(cfg_rng_seed);
+        Random::get_rng().random_seed(cfg_rng_seed);
 
         cfg_weights_file = "../src/tests/0k.txt";
 
