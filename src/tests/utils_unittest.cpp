@@ -46,25 +46,25 @@ using namespace Utils;
 
 TEST(UtilsTest, CeilMultiple) {
     // Equal to a multiple
-    EXPECT_EQ(ceilMultiple(0, 1), (size_t)0);
-    EXPECT_EQ(ceilMultiple(0, 3), (size_t)0);
+    EXPECT_EQ(ceil_multiple(0, 1), (size_t)0);
+    EXPECT_EQ(ceil_multiple(0, 3), (size_t)0);
 
-    EXPECT_EQ(ceilMultiple(6,  1), (size_t)6);
-    EXPECT_EQ(ceilMultiple(23, 1), (size_t)23);
+    EXPECT_EQ(ceil_multiple(6,  1), (size_t)6);
+    EXPECT_EQ(ceil_multiple(23, 1), (size_t)23);
 
-    EXPECT_EQ(ceilMultiple(2, 2), (size_t)2);
-    EXPECT_EQ(ceilMultiple(4, 2), (size_t)4);
-    EXPECT_EQ(ceilMultiple(6, 2), (size_t)6);
-    EXPECT_EQ(ceilMultiple(0, 3), (size_t)0);
-    EXPECT_EQ(ceilMultiple(3, 3), (size_t)3);
-    EXPECT_EQ(ceilMultiple(9, 3), (size_t)9);
+    EXPECT_EQ(ceil_multiple(2, 2), (size_t)2);
+    EXPECT_EQ(ceil_multiple(4, 2), (size_t)4);
+    EXPECT_EQ(ceil_multiple(6, 2), (size_t)6);
+    EXPECT_EQ(ceil_multiple(0, 3), (size_t)0);
+    EXPECT_EQ(ceil_multiple(3, 3), (size_t)3);
+    EXPECT_EQ(ceil_multiple(9, 3), (size_t)9);
 
     // Requires rounding up
-    EXPECT_EQ(ceilMultiple(3, 5), (size_t)5);
-    EXPECT_EQ(ceilMultiple(6, 5), (size_t)10);
-    EXPECT_EQ(ceilMultiple(9, 5), (size_t)10);
-    EXPECT_EQ(ceilMultiple(23, 5), (size_t)25);
-    EXPECT_EQ(ceilMultiple(99, 100), (size_t)100);
+    EXPECT_EQ(ceil_multiple(3, 5), (size_t)5);
+    EXPECT_EQ(ceil_multiple(6, 5), (size_t)10);
+    EXPECT_EQ(ceil_multiple(9, 5), (size_t)10);
+    EXPECT_EQ(ceil_multiple(23, 5), (size_t)25);
+    EXPECT_EQ(ceil_multiple(99, 100), (size_t)100);
 }
 
 double randomlyDistributedProbability(std::vector<short> values, double expected)
@@ -110,7 +110,7 @@ TEST(UtilsTest, RandFix)
 	
     for (auto i = size_t{0}; i < expected * max; i++)
 	{
-        count[rng->randfix<200>()]++;
+        count[rng->random_fixed<200>()]++;
     }
 
     auto p = randomlyDistributedProbability(count, expected);
@@ -130,7 +130,7 @@ TEST(UtilsTest, Randuint64_lastEightBits)
 	
     for (auto i = size_t{0}; i < expected * max; i++)
 	{
-        count[rng->randuint64() & 127]++;
+        count[rng->random_uint64() & 127]++;
     }
 
     auto p = randomlyDistributedProbability(count, expected);
@@ -147,7 +147,7 @@ TEST(UtilsTest, Randuint64_max)
     auto count = std::vector<short>(max, 0);
     for (auto i = size_t{0}; i < expected * max; i++) 
 	{
-        count[rng->randuint64(max)]++;
+        count[rng->random_uint64(max)]++;
     }
 
     auto p = randomlyDistributedProbability(count, expected);
