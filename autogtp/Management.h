@@ -15,14 +15,12 @@
     You should have received a copy of the GNU General Public License
     along with Leela Zero.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #ifndef MANAGEMENT_H
 #define MANAGEMENT_H
 
 #include <QAtomicInt>
-#include <QMutex>
 #include <QString>
-#include <QTextStream>
-#include <QThread>
 #include <QFileInfo>
 #include <QLockFile>
 #include <QVector>
@@ -32,35 +30,34 @@
 
 constexpr int AUTOGTP_VERSION = 18;
 
-class Management : public QObject {
+class Management : public QObject
+{
     Q_OBJECT
 public:
-    Management(const int gpus,
-               const int games,
-               const QStringList& gpuslist,
-               const int ver,
-               const int maxGame,
-               const bool delNetworks,
-               const QString& keep,
-               const QString& debug);
+	
+    Management(int gpus, int games, const QStringList& gpuslist, int ver, int maxGame,bool delNetworks, const QString& keep, const QString& debug);
     ~Management() = default;
     void giveAssignments();
-    void incMoves() { m_movesMade++; }
+    void incMoves() { ++m_movesMade; }
     void wait();
+	
 signals:
+	
     void sendQuit();
+
 public slots:
+	
     void getResult(Order ord, Result res, int index, int duration);
     void storeGames();
 
 private:
 
-    struct NetworkException: public std::runtime_error
+    struct NetworkException: std::runtime_error
     {
-        NetworkException(std::string const& message)
-            : std::runtime_error("NetworkException: " + message)
+        NetworkException(std::string const& message): std::runtime_error("NetworkException: " + message)
         {}
     };
+	
     QMutex m_syncMutex;
     QVector<Worker*> m_gamesThreads;
     int m_games;

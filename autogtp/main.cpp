@@ -19,64 +19,36 @@
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QTimer>
-#include <QtCore/QTextStream>
 #include <QtCore/QStringList>
-#include <QCommandLineParser>
-#include <QProcess>
-#include <QFile>
-#include <QFileInfo>
 #include <QDir>
-#include <QtWidgets/QShortcut>
 #include <QDebug>
 #include <chrono>
 #ifdef WIN32
 #include <direct.h>
 #endif
 #include <QCommandLineParser>
-#include <iostream>
 #include "Game.h"
 #include "Management.h"
 #include "Console.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     QCoreApplication app(argc, argv);
-    app.setApplicationName("autogtp");
-    app.setApplicationVersion(QString("v%1").arg(AUTOGTP_VERSION));
+    QCoreApplication::setApplicationName("autogtp");
+    QCoreApplication::setApplicationVersion(QString("v%1").arg(AUTOGTP_VERSION));
 
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption gamesNumOption(
-        {"g", "gamesNum"},
-              "Play 'gamesNum' games on one device (GPU/CPU) at the same time.",
-              "num", "1");
-    QCommandLineOption gpusOption(
-        {"u", "gpus"},
-              "Index of the device(s) to use for multiple devices support.",
-              "num");
-    QCommandLineOption keepSgfOption(
-        {"k", "keepSgf" },
-              "Save SGF files after each self-play game.",
-              "output directory");
-    QCommandLineOption keepDebugOption(
-        { "d", "debug" }, "Save training and extra debug files after each self-play game.",
-                          "output directory");
-    QCommandLineOption timeoutOption(
-        { "t", "timeout" }, "Save running games after the timeout (in minutes) is passed and then exit.",
-                          "time in minutes");
-
-    QCommandLineOption singleOption(
-        { "s", "single" }, "Exit after the first game is completed.",
-                          "");
-
-    QCommandLineOption maxOption(
-        { "m", "maxgames" }, "Exit after the given number of games is completed.",
-                          "max number of games");
-
-    QCommandLineOption eraseOption(
-        { "e", "erase" }, "Erase old networks when new ones are available.",
-                          "");
+    QCommandLineOption gamesNumOption({"g", "gamesNum"}, "Play 'gamesNum' games on one device (GPU/CPU) at the same time.", "num", "1");
+    QCommandLineOption gpusOption({"u", "gpus"}, "Index of the device(s) to use for multiple devices support.", "num");
+    QCommandLineOption keepSgfOption({"k", "keepSgf" }, "Save SGF files after each self-play game.","output directory");
+    QCommandLineOption keepDebugOption({ "d", "debug" }, "Save training and extra debug files after each self-play game.", "output directory");
+    QCommandLineOption timeoutOption({ "t", "timeout" }, "Save running games after the timeout (in minutes) is passed and then exit.", "time in minutes");
+    QCommandLineOption singleOption({ "s", "single" }, "Exit after the first game is completed.","");
+    QCommandLineOption maxOption({ "m", "maxgames" }, "Exit after the given number of games is completed.","max number of games");
+    QCommandLineOption eraseOption({ "e", "erase" }, "Erase old networks when new ones are available.", "");
 
     parser.addOption(gamesNumOption);
     parser.addOption(gpusOption);
@@ -89,28 +61,36 @@ int main(int argc, char *argv[]) {
 
     // Process the actual command line arguments given by the user
     parser.process(app);
-    int gamesNum = parser.value(gamesNumOption).toInt();
-    QStringList gpusList = parser.values(gpusOption);
-    int gpusNum = gpusList.count();
-    if (gpusNum == 0) {
+    auto gamesNum = parser.value(gamesNumOption).toInt();
+    auto gpusList = parser.values(gpusOption);
+    auto gpusNum = gpusList.count();
+
+	if (gpusNum == 0) 
         gpusNum = 1;
-    }
-    int maxNum = -1;
-    if (parser.isSet(maxOption)) {
+	
+    auto maxNum = -1;
+	
+    if (parser.isSet(maxOption)) 
+	{
         maxNum = parser.value(maxOption).toInt();
-        if (maxNum == 0) {
+        if (maxNum == 0)
             maxNum = 1;
-        }
-        if (maxNum < gpusNum * gamesNum) {
+    	
+        if (maxNum < gpusNum * gamesNum)
+		{
             gamesNum = maxNum / gpusNum;
-            if (gamesNum == 0) {
+            if (gamesNum == 0) 
+			{
                 gamesNum = 1;
                 gpusNum = 1;
             }
         }
+    	
         maxNum -= (gpusNum * gamesNum);
     }
-    if (parser.isSet(singleOption)) {
+	
+    if (parser.isSet(singleOption)) 
+	{
         gamesNum = 1;
         gpusNum = 1;
         maxNum = 0;
@@ -118,44 +98,58 @@ int main(int argc, char *argv[]) {
 
     // Map streams
     QTextStream cerr(stderr, QIODevice::WriteOnly);
-    cerr << "AutoGTP v" << AUTOGTP_VERSION << endl;
+
+	cerr << "AutoGTP v" << AUTOGTP_VERSION << endl;
     cerr << "Using " << gamesNum << " game thread(s) per device." << endl;
-    if (parser.isSet(keepSgfOption)) {
-        if (!QDir().mkpath(parser.value(keepSgfOption))) {
-            cerr << "Couldn't create output directory for self-play SGF files!"
-                 << endl;
+
+	if (parser.isSet(keepSgfOption)) 
+	{
+        if (!QDir().mkpath(parser.value(keepSgfOption))) 
+		{
+            cerr << "Couldn't create output directory for self-play SGF files!" << endl;
             return EXIT_FAILURE;
         }
     }
-    if (parser.isSet(keepDebugOption)) {
-        if (!QDir().mkpath(parser.value(keepDebugOption))) {
-            cerr << "Couldn't create output directory for self-play Debug files!"
-                 << endl;
+	
+    if (parser.isSet(keepDebugOption)) 
+	{
+        if (!QDir().mkpath(parser.value(keepDebugOption))) 
+		{
+            cerr << "Couldn't create output directory for self-play Debug files!" << endl;
             return EXIT_FAILURE;
         }
     }
+	
     Console *cons = nullptr;
-    if (!QDir().mkpath("networks")) {
-        cerr << "Couldn't create the directory for the networks files!"
-             << endl;
+    if (!QDir().mkpath("networks")) 
+	{
+        cerr << "Couldn't create the directory for the networks files!" << endl;
         return EXIT_FAILURE;
     }
-    Management *boss = new Management(gpusNum, gamesNum, gpusList, AUTOGTP_VERSION, maxNum,
-                                      parser.isSet(eraseOption), parser.value(keepSgfOption),
-                                      parser.value(keepDebugOption));
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, boss, &Management::storeGames);
-    QTimer *timer = new QTimer();
-    boss->giveAssignments();
-    if (parser.isSet(timeoutOption)) {
+	
+    Management *boss = new Management(gpusNum, gamesNum, gpusList, AUTOGTP_VERSION, maxNum, parser.isSet(eraseOption), parser.value(keepSgfOption), parser.value(keepDebugOption));
+
+	QObject::connect(&app, &QCoreApplication::aboutToQuit, boss, &Management::storeGames);
+    auto *timer = new QTimer();
+
+	boss->giveAssignments();
+	
+    if (parser.isSet(timeoutOption)) 
+	{
         QObject::connect(timer, &QTimer::timeout, &app, &QCoreApplication::quit);
         timer->start(parser.value(timeoutOption).toInt() * 60000);
     }
-    if (parser.isSet(singleOption) || parser.isSet(maxOption)) {
+
+	if (parser.isSet(singleOption) || parser.isSet(maxOption))
+	{
         QObject::connect(boss, &Management::sendQuit, &app, &QCoreApplication::quit);
     }
-    if (true) {
+
+	if (true) 
+	{
         cons = new Console();
         QObject::connect(cons, &Console::sendQuit, &app, &QCoreApplication::quit);
     }
-    return app.exec();
+	
+    return QCoreApplication::exec();
 }

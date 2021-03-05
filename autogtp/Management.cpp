@@ -17,15 +17,13 @@
 */
 
 #include <cmath>
-#include <random>
 #include <QDir>
 #include <QThread>
 #include <QList>
-#include <QCryptographicHash>
 #include <QJsonArray>
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QLockFile>
 #include <QUuid>
 #include <QRegularExpression>
 #include <QVariant>
@@ -37,7 +35,7 @@ constexpr int RETRY_DELAY_MIN_SEC = 30;
 constexpr int RETRY_DELAY_MAX_SEC = 60 * 60;  // 1 hour
 constexpr int MAX_RETRIES = 3;           // Stop retrying after 3 times
 
-const QString server_url = "http://sai.unich.it/sai81/";
+const QString server_url = "http://sai.unich.it/leelascore1/";
 const QString Leelaz_min_version = "0.12";
 
 Management::Management(const int gpus,
@@ -68,27 +66,33 @@ Management::Management(const int gpus,
     m_lockFile(nullptr) {
 }
 
-void Management::runTuningProcess(const QString &tuneCmdLine) {
+void Management::runTuningProcess(const QString &tuneCmdLine)
+{
     QTextStream(stdout) << tuneCmdLine << endl;
     QProcess tuneProcess;
     tuneProcess.start(tuneCmdLine);
     tuneProcess.waitForStarted(-1);
-    while (tuneProcess.state() == QProcess::Running) {
+    while (tuneProcess.state() == QProcess::Running) 
+	{
         tuneProcess.waitForReadyRead(1000);
         QByteArray text = tuneProcess.readAllStandardOutput();
         int version_start = text.indexOf("Leela Zero ") + 11;
-        if (version_start > 10) {
+    	
+        if (version_start > 10) 
+		{
             int version_end = text.indexOf(" ", version_start);
             m_leelaversion = QString(text.mid(version_start, version_end - version_start));
         }
         QTextStream(stdout) << text;
         QTextStream(stdout) << tuneProcess.readAllStandardError();
     }
+	
     QTextStream(stdout) << "Found Leela Version : " << m_leelaversion << endl;
     tuneProcess.waitForFinished(-1);
 }
 
-Order Management::getWork(const QFileInfo &file) {
+Order Management::getWork(const QFileInfo &file)
+{
     QTextStream(stdout) << "Got previously stored file" <<endl;
     Order o;
     o.load(file.fileName());
@@ -99,7 +103,8 @@ Order Management::getWork(const QFileInfo &file) {
     return o;
 }
 
-void Management::giveAssignments() {
+void Management::giveAssignments()
+{
     sendAllGames();
 
     //Make the OpenCl tuning before starting the threads
@@ -108,66 +113,76 @@ void Management::giveAssignments() {
     Order tuneOrder = getWork(true);
     QString tuneCmdLine("./leelaz --batchsize=5 --tune-only -w networks/");
     tuneCmdLine.append(tuneOrder.parameters()["network"] + ".gz");
-    if (m_gpusList.isEmpty()) {
+
+	if (m_gpusList.isEmpty()) 
+	{
         runTuningProcess(tuneCmdLine);
-    } else {
-        for (auto i = 0; i < m_gpusList.size(); ++i) {
+    } else 
+	{
+        for (auto i = 0; i < m_gpusList.size(); ++i)
             runTuningProcess(tuneCmdLine + " --gpu=" + m_gpusList.at(i));
-        }
     }
+	
     QTextStream(stdout) << "Tuning process finished" << endl;
 
     m_start = std::chrono::high_resolution_clock::now();
     QString myGpu;
-    for (int gpu = 0; gpu < m_gpus; ++gpu) {
-        for (int game = 0; game < m_games; ++game) {
+    for (int gpu = 0; gpu < m_gpus; ++gpu) 
+	{
+        for (int game = 0; game < m_games; ++game) 
+		{
             int thread_index = gpu * m_games + game;
-            if (m_gpusList.isEmpty()) {
+        	
+            if (m_gpusList.isEmpty())
                 myGpu = "";
-            } else {
+            else
                 myGpu = m_gpusList.at(gpu);
-            }
+        	
             QTextStream(stdout) << "Starting thread " << game + 1 ;
             QTextStream(stdout) << " on device " << gpu << endl;
             m_gamesThreads[thread_index] = new Worker(thread_index, myGpu, this);
-            connect(m_gamesThreads[thread_index],
-                    &Worker::resultReady,
-                    this,
-                    &Management::getResult,
-                    Qt::DirectConnection);
-            QFileInfo finfo = getNextStored();
-            if (!finfo.fileName().isEmpty()) {
+            connect(m_gamesThreads[thread_index], &Worker::resultReady, this, &Management::getResult, Qt::DirectConnection);
+
+        	QFileInfo finfo = getNextStored();
+
+        	if (!finfo.fileName().isEmpty()) 
                 m_gamesThreads[thread_index]->order(getWork(finfo));
-            } else {
+        	else 
                 m_gamesThreads[thread_index]->order(getWork());
-            }
+        	
             m_gamesThreads[thread_index]->start();
         }
     }
 }
 
-void Management::storeGames() {
-    for (int i = 0; i < m_gpus * m_games; ++i) {
+void Management::storeGames()
+{
+    for (int i = 0; i < m_gpus * m_games; ++i) 
         m_gamesThreads[i]->doStore();
-    }
+	
     wait();
 }
 
-void Management::wait() {
+void Management::wait()
+{
     QTextStream(stdout) << "Management: waiting for workers" << endl;
-    for (int i = 0; i < m_gpus * m_games; ++i) {
+	
+    for (int i = 0; i < m_gpus * m_games; ++i) 
+	{
         m_gamesThreads[i]->wait();
         QTextStream(stdout) << "Management: Worker " << i+1 << " ended" << endl;
     }
 }
 
-void Management::getResult(Order ord, Result res, int index, int duration) {
-    if (res.type() == Result::Error) {
+void Management::getResult(Order ord, Result res, int index, int duration)
+{
+    if (res.type() == Result::Error)
         exit(1);
-    }
+	
     m_syncMutex.lock();
     m_gamesPlayed++;
-    switch (res.type()) {
+    switch (res.type())
+	{
     case Result::File:
         m_selfGames++,
         uploadData(res.parameters(), ord.parameters());
@@ -180,52 +195,62 @@ void Management::getResult(Order ord, Result res, int index, int duration) {
         printTimingInfo(duration);
         break;
     }
+	
     sendAllGames();
-    if (m_gamesLeft == 0) {
+    if (m_gamesLeft == 0) 
+	{
         m_gamesThreads[index]->doFinish();
-        if (m_threadsLeft > 1) {
+    	
+        if (m_threadsLeft > 1)
             --m_threadsLeft;
-        } else {
-            sendQuit();
-        }
-    } else {
-        if (m_gamesLeft > 0) --m_gamesLeft;
-        QFileInfo finfo = getNextStored();
-        if (!finfo.fileName().isEmpty()) {
-            m_gamesThreads[index]->order(getWork(finfo));
-        } else {
-            m_gamesThreads[index]->order(getWork());
-        }
+        else
+            sendQuit();  	
     }
+	else 
+	{
+        if (m_gamesLeft > 0) 
+			--m_gamesLeft;
+
+		QFileInfo finfo = getNextStored();
+
+		if (!finfo.fileName().isEmpty())
+            m_gamesThreads[index]->order(getWork(finfo));
+        else
+            m_gamesThreads[index]->order(getWork());
+    }
+	
     m_syncMutex.unlock();
 }
 
-QFileInfo Management::getNextStored() {
+QFileInfo Management::getNextStored()
+{
     QFileInfo fi;
     checkStoredGames();
-    while (!m_storedFiles.isEmpty()) {
+	
+    while (!m_storedFiles.isEmpty()) 
+	{
         fi = m_storedFiles.takeFirst();
         m_lockFile = new QLockFile(fi.fileName()+".lock");
-        if (m_lockFile->tryLock(10) &&
-           fi.exists()) {
-                break;
-        }
+    	
+        if (m_lockFile->tryLock(10) && fi.exists())
+			break;
+    	
         delete m_lockFile;
         m_lockFile = nullptr;
     }
+	
     return fi;
 }
 
-void  Management::printTimingInfo(float duration) {
+void  Management::printTimingInfo(float duration)
+{
 
     auto game_end = std::chrono::high_resolution_clock::now();
-    auto total_time_s =
-        std::chrono::duration_cast<std::chrono::seconds>(game_end - m_start);
-    auto total_time_min =
-        std::chrono::duration_cast<std::chrono::minutes>(total_time_s);
-    auto total_time_millis =
-        std::chrono::duration_cast<std::chrono::milliseconds>(total_time_s);
-    QTextStream(stdout)
+    auto total_time_s = std::chrono::duration_cast<std::chrono::seconds>(game_end - m_start);
+    auto total_time_min = std::chrono::duration_cast<std::chrono::minutes>(total_time_s);
+    auto total_time_millis = std::chrono::duration_cast<std::chrono::milliseconds>(total_time_s);
+
+	QTextStream(stdout)
         << m_gamesPlayed << " game(s) (" << m_selfGames << " self played and "
         << m_matchGames << " matches) played in "
         << total_time_min.count() << " minutes = "
@@ -234,33 +259,43 @@ void  Management::printTimingInfo(float duration) {
         << ", last game took " << int(duration) << " seconds." << endl;
 }
 
-QString Management::getOption(const QJsonObject &ob, const QString &key, const QString &opt, const QString &defValue) {
+QString Management::getOption(const QJsonObject &ob, const QString &key, const QString &opt, const QString &defValue)
+{
     QString res;
-    if (ob.contains(key)) {
+	
+    if (ob.contains(key)) 
+	{
         res.append(opt + ob.value(key).toString() + " ");
-    } else {
-        if (defValue != "") {
+    }
+	else 
+	{
+        if (defValue != "")
             res.append(opt + defValue + " ");
-        }
     }
+	
     return res;
 }
 
-QString Management::getBoolOption(const QJsonObject &ob, const QString &key, const QString &opt, bool defValue) {
+QString Management::getBoolOption(const QJsonObject &ob, const QString &key, const QString &opt, bool defValue)
+{
     QString res;
-    if (ob.contains(key)) {
-        if (ob.value(key).toString().compare("true", Qt::CaseInsensitive) == 0) {
+	
+    if (ob.contains(key)) 
+	{
+        if (ob.value(key).toString().compare("true", Qt::CaseInsensitive) == 0) 
             res.append(opt + " ");
-        }
-    } else {
-        if (defValue) {
-            res.append(opt + " ");
-        }
     }
+	else
+	{
+        if (defValue)
+            res.append(opt + " ");
+    }
+	
     return res;
 }
 
-QString Management::getOptionsString(const QJsonObject &opt, const QString &rnd) {
+QString Management::getOptionsString(const QJsonObject &opt, const QString &rnd)
+{
     QString options;
     options.append(getOption(opt, "playouts", " -p ", ""));
     options.append(getOption(opt, "visits", " -v ", ""));
@@ -271,19 +306,23 @@ QString Management::getOptionsString(const QJsonObject &opt, const QString &rnd)
     options.append(getBoolOption(opt, "dumbpass", " -d ", true));
     options.append(getBoolOption(opt, "noise", " -n ", true));
     options.append(" --noponder ");
-    if (rnd != "") {
+	
+    if (rnd != "")
         options.append(" -s " + rnd + " ");
-    }
+	
     return options;
 }
 
-QString Management::getGtpCommandsString(const QJsonValue &gtpCommands) {
+QString Management::getGtpCommandsString(const QJsonValue &gtpCommands)
+{
     const auto gtpCommandsJsonDoc = QJsonDocument(gtpCommands.toArray());
     const auto gtpCommandsJson = gtpCommandsJsonDoc.toJson(QJsonDocument::Compact);
     auto gtpCommandsString = QVariant(gtpCommandsJson).toString();
     gtpCommandsString.remove(QRegularExpression("[\\[\\]\"]"));
     return gtpCommandsString;
 }
+
+// FROM HERE
 
 Order Management::getWorkInternal(bool tuning) {
     Order o(Order::Error);
