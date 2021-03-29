@@ -56,7 +56,7 @@ static void license_blurb()
 {
     printf(
         "Leela Zero %s  Copyright (C) 2017-2019  Gian-Carlo Pascutto and contributors\n"
-		"Leela Score Copyright (C) 2020-2021 Luca Pasqualini is a score based version of Leela Zero"
+		"Leela Score Copyright (C) 2020-2021 Luca Pasqualini is a score based version of Leela Zero\n"
         "This program comes with ABSOLUTELY NO WARRANTY.\n"
         "This is free software, and you are welcome to redistribute it\n"
         "under certain conditions; see the COPYING file for details.\n\n",
