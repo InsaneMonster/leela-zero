@@ -844,7 +844,6 @@ bool Network::probe_cache(const GameState* const state, netresult& result)
                     corrected_policy[idx] = result.policy[sym_idx];
                 }
             	
-                //result.policy = std::move(corrected_policy);
 				result.policy = corrected_policy;
                 return true;
             }

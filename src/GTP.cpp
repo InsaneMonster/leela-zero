@@ -859,7 +859,7 @@ void GTP::execute(GameState & game, const std::string& x_input)
             game.set_passes(0);
             {
                 game.set_to_move(who);
-                auto move = search->think(who, UCTSearch::NOPASS);
+                auto move = search->think(who, UCTSearch::NO_PASS);
                 game.play_move(move);
 
                 auto vertex = game.move_to_text(move);

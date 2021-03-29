@@ -227,7 +227,7 @@ void GameState::place_free_handicap(int stones, Network & network)
     for (auto i = 0; i < stones; i++) 
 	{
         auto search = std::make_unique<UCTSearch>(*this, network);
-        auto const move = search->think(FastBoard::BLACK, UCTSearch::NOPASS);
+        auto const move = search->think(FastBoard::BLACK, UCTSearch::NO_PASS);
     	
         play_move(FastBoard::BLACK, move);
     }
