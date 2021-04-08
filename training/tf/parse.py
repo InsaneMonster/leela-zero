@@ -155,7 +155,7 @@ def main():
             os.makedirs(logdir)
         except FileExistsError:
             pass
-    file_handler: logging.FileHandler = logging.FileHandler(logdir + "/info.log", "a+")
+    file_handler: logging.FileHandler = logging.FileHandler(logdir + "/info_" + str(blocks) + "x" + str(filters) + ".log", "a+")
     # Set handlers properties
     console_handler.setLevel(logging.DEBUG)
     file_handler.setLevel(logging.DEBUG)
