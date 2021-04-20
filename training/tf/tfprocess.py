@@ -116,10 +116,11 @@ class Timer:
         return e
 
 class TFProcess:
-    def __init__(self, residual_blocks, residual_filters):
+    def __init__(self, residual_blocks, residual_filters, steps):
         # Network structure
         self.residual_blocks = residual_blocks
         self.residual_filters = residual_filters
+        self.required_steps = steps
 
         # model type: full precision (fp32) or mixed precision (fp16)
         self.model_dtype = tf.float32
@@ -444,7 +445,7 @@ class TFProcess:
                 'accuracy': r[3], 'total': r[0]+r[1]+r[2]}
 
     def process(self, train_data, test_data, logger: logging.Logger):
-        info_steps = 1000
+        info_steps = self.required_steps // 5
         stats = Stats()
         timer = Timer()
         while True:
@@ -471,7 +472,7 @@ class TFProcess:
                     tf.Summary(value=summaries), steps)
                 stats.clear()
 
-            if steps % 5000 == 0:
+            if steps % self.required_steps == 0:
                 test_stats = Stats()
                 test_batches = 800 # reduce sample mean variance by ~28x
                 for _ in range(0, test_batches):

@@ -104,33 +104,25 @@ def split_chunks(chunks, test_ratio):
     return (chunks[:splitpoint], chunks[splitpoint:])
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Train network from game data.')
-    parser.add_argument("blockspref",
-        help="Number of blocks", nargs='?', type=int)
-    parser.add_argument("filterspref",
-        help="Number of filters", nargs='?', type=int)
-    parser.add_argument("trainpref",
-        help='Training file prefix', nargs='?', type=str)
-    parser.add_argument("restorepref",
-        help='Training snapshot prefix', nargs='?', type=str)
-    parser.add_argument("--blocks", '-b',
-        help="Number of blocks", type=int)
-    parser.add_argument("--filters", '-f',
-        help="Number of filters", type=int)
-    parser.add_argument("--train", '-t',
-        help="Training file prefix", type=str)
+    parser = argparse.ArgumentParser(description='Train network from game data.')
+    parser.add_argument("blockspref", help="Number of blocks", nargs='?', type=int)
+    parser.add_argument("filterspref", help="Number of filters", nargs='?', type=int)
+    parser.add_argument("stepspref", help="Number of steps", nargs='?', type=int)
+    parser.add_argument("trainpref", help='Training file prefix', nargs='?', type=str)
+    parser.add_argument("restorepref", help='Training snapshot prefix', nargs='?', type=str)
+    parser.add_argument("--blocks", '-b', help="Number of blocks", type=int)
+    parser.add_argument("--filters", '-f', help="Number of filters", type=int)
+    parser.add_argument("--steps", '-s', help="Number of steps", type=int)
+    parser.add_argument("--train", '-t', help="Training file prefix", type=str)
     parser.add_argument("--test", help="Test file prefix", type=str)
-    parser.add_argument("--restore", type=str,
-        help="Prefix of tensorflow snapshot to restore from")
-    parser.add_argument("--logbase", default='leelalogs', type=str,
-        help="Log file prefix (for tensorboard) (default: %(default)s)")
-    parser.add_argument("--sample", default=DOWN_SAMPLE, type=int,
-        help="Rate of data down-sampling to use (default: %(default)d)")
+    parser.add_argument("--restore", type=str, help="Prefix of tensorflow snapshot to restore from")
+    parser.add_argument("--logbase", default='leelalogs', type=str, help="Log file prefix (for tensorboard) (default: %(default)s)")
+    parser.add_argument("--sample", default=DOWN_SAMPLE, type=int, help="Rate of data down-sampling to use (default: %(default)d)")
     args = parser.parse_args()
 
     blocks = args.blocks or args.blockspref
     filters = args.filters or args.filterspref
+    steps = args.steps or args.stepspref
     train_data_prefix = args.train or args.trainpref
     restore_prefix = args.restore or args.restorepref
 
@@ -177,8 +169,7 @@ def main():
         print("No data to train on!")
         return
 
-    print("Training with {0} chunks, validating on {1} chunks".format(
-        len(training), len(test)))
+    print("Training with {0} chunks for {1} steps, validating on {2} chunks".format(len(training), steps, len(test)))
 
     train_parser = ChunkParser(FileDataSrc(training),
                                shuffle_size=1<<20, # 2.2GB of RAM.
