@@ -446,6 +446,7 @@ class TFProcess:
 
     def process(self, train_data, test_data, logger: logging.Logger):
         info_steps = self.required_steps // 5
+        starting_steps = tf.train.global_step(self.session, self.global_step)
         stats = Stats()
         timer = Timer()
         while True:
@@ -461,7 +462,7 @@ class TFProcess:
                 # Clear the accumulated gradient.
                 self.session.run([self.clear_op])
 
-            if steps % info_steps == 0:
+            if (steps - starting_steps) % info_steps == 0:
                 speed = info_steps * self.batch_size / timer.elapsed()
                 logger.info("step {}, policy={:g} mse={:g} reg={:g} total={:g} ({:g} pos/s)".format(
                     steps, stats.mean('policy'), stats.mean('mse'), stats.mean('reg'),
@@ -472,7 +473,7 @@ class TFProcess:
                     tf.Summary(value=summaries), steps)
                 stats.clear()
 
-            if steps % self.required_steps == 0:
+            if (steps - starting_steps) % self.required_steps == 0:
                 test_stats = Stats()
                 test_batches = 800 # reduce sample mean variance by ~28x
                 for _ in range(0, test_batches):
